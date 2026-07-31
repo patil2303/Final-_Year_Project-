@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo & PDF to Excel Converter</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        
+        <!-- Header -->
+        <header class="navbar">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-file-excel"></i>
+                </div>
+                <div>
+                    <h2>Photo & PDF to Excel</h2>
+                    <p>Convert tables & numbers from photos or PDFs to Excel sheets</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace Container -->
+        <main class="main-content">
+
+            <!-- Card 1: File Upload & Action -->
+            <div class="card upload-card">
+                <!-- Dropzone Area -->
+                <div class="dropzone" id="dropZone">
+                    <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg,.webp,.tiff,.bmp,.gif,image/*,application/pdf" style="display:none;">
+                    <div class="drop-icon">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                    </div>
+                    <h3>Drag & Drop your File Here</h3>
+                    <p class="drop-subtitle">Supports <strong>PDF, PNG, JPEG, WEBP, TIFF, BMP</strong> — works with printed & handwritten numbers</p>
+                    <button class="btn btn-primary btn-lg" onclick="document.getElementById('fileInput').click()">
+                        <i class="fa-solid fa-folder-open"></i> Choose Any File
+                    </button>
+                </div>
+
+                <!-- Loaded File Info Bar (When file selected) -->
+                <div class="file-preview-bar" id="filePreviewBar" style="display: none;">
+                    <div class="file-info">
+                        <i class="fa-solid fa-file-circle-check file-icon"></i>
+                        <div>
+                            <strong id="lblFileName">file_name.pdf</strong>
+                            <span class="file-meta" id="lblFileMeta">PDF Document • 1 Page</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-outline" id="btnChangeFile">Change File</button>
+                </div>
+
+                <!-- Big Action Button -->
+                <div class="action-bar-strip">
+                    <button class="btn btn-accent btn-xl" id="btnConvert" disabled>
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Convert to Excel Sheet
+                    </button>
+                </div>
+            </div>
+
+            <!-- Card 2: Extracted Excel Grid & Download Bar (Hidden until extracted) -->
+            <div class="card result-card" id="resultCard" style="display: none;">
+                
+                <!-- Result Header & Downloads -->
+                <div class="result-header">
+                    <div>
+                        <h3><i class="fa-solid fa-table"></i> Extracted Excel Grid</h3>
+                        <p>Review or edit any values before downloading your spreadsheet</p>
+                    </div>
+
+                    <div class="download-group">
+                        <button class="btn btn-success btn-lg" id="btnExportExcel">
+                            <i class="fa-solid fa-file-excel"></i> Download Excel (.xlsx)
+                        </button>
+                        <button class="btn btn-info btn-lg" id="btnExportCsv">
+                            <i class="fa-solid fa-file-csv"></i> Download CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Section Tabs -->
+                <div class="section-tabs" id="sectionTabsBar"></div>
+
+                <!-- Editable Spreadsheet Table View -->
+                <div class="table-scroll-container">
+                    <table class="excel-table">
+                        <thead id="tableHead"></thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Grid Editing Toolbar -->
+                <div class="grid-tools">
+                    <button class="btn btn-sm btn-outline" id="btnAddRow"><i class="fa-solid fa-plus"></i> Add Row</button>
+                    <button class="btn btn-sm btn-outline" id="btnAddCol"><i class="fa-solid fa-plus"></i> Add Column</button>
+                    <button class="btn btn-sm btn-danger-outline" id="btnClearGrid"><i class="fa-solid fa-trash-can"></i> Clear Table</button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Simple Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loader-box">
+            <div class="loader-spinner"></div>
+            <h3 id="loadingTitle">Processing File...</h3>
+            <p id="loadingMessage">Extracting numbers and building Excel table...</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/spreadsheet_editor.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

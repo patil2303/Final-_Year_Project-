@@ -1,0 +1,28 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Large Datasets (>100MB exceeds GitHub push limits)
+*.arff
+mnist_784*.arff
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Temporary scratch & test artifacts
+scratch/
+.pytest_cache/

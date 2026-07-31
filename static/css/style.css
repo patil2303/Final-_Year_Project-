@@ -1,0 +1,441 @@
+/* ==========================================================================
+   PHOTO & PDF TO EXCEL CONVERTER - CLEAN BRIGHT UI
+   ========================================================================== */
+
+:root {
+    --bg-page: #F8FAFC;
+    --bg-card: #FFFFFF;
+    --bg-input: #F1F5F9;
+    --border-color: #E2E8F0;
+    --border-hover: #CBD5E1;
+
+    --text-dark: #0F172A;
+    --text-muted: #64748B;
+    --text-light: #94A3B8;
+
+    --primary: #4F46E5;          /* Indigo */
+    --primary-hover: #4338CA;
+    --success: #10B981;          /* Emerald Green */
+    --success-hover: #059669;
+    --info: #0284C7;             /* Sky Blue */
+    --info-hover: #0369A1;
+    --danger: #EF4444;
+
+    --font-main: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-code: 'JetBrains Mono', monospace;
+
+    --radius-card: 16px;
+    --radius-btn: 10px;
+
+    --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.05);
+    --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.04), 0 8px 30px rgba(0, 0, 0, 0.03);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-main);
+    background-color: var(--bg-page);
+    color: var(--text-dark);
+    line-height: 1.5;
+    min-height: 100vh;
+}
+
+.app-layout {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* Navbar Header */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-card);
+    padding: 16px 24px;
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--border-color);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.brand-icon {
+    width: 46px;
+    height: 46px;
+    background: linear-gradient(135deg, var(--primary), #06B6D4);
+    color: #FFFFFF;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+
+.brand h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.brand p {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.nav-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* Cards System */
+.card {
+    background: var(--bg-card);
+    border-radius: var(--radius-card);
+    padding: 28px;
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--border-color);
+}
+
+/* Upload Card & Dropzone */
+.dropzone {
+    border: 2.5px dashed #CBD5E1;
+    border-radius: 14px;
+    padding: 40px 20px;
+    text-align: center;
+    background: #FAFAFA;
+    transition: all 0.2s ease;
+}
+
+.dropzone:hover, .dropzone.drag-over {
+    border-color: var(--primary);
+    background: rgba(79, 70, 229, 0.03);
+}
+
+.drop-icon {
+    font-size: 3.2rem;
+    color: var(--primary);
+    margin-bottom: 12px;
+}
+
+.dropzone h3 {
+    font-size: 1.2rem;
+    margin-bottom: 6px;
+}
+
+.drop-subtitle {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+}
+
+/* Loaded File Preview Bar */
+.file-preview-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: #F1F5F9;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+.file-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.file-icon {
+    font-size: 1.8rem;
+    color: var(--primary);
+}
+
+.file-info strong {
+    display: block;
+    font-size: 0.95rem;
+}
+
+.file-meta {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* Action Bar Strip */
+.action-bar-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.toggle-group-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.toggle-card {
+    flex: 1;
+    min-width: 250px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    background: rgba(79, 70, 229, 0.06);
+    border: 1.5px solid rgba(79, 70, 229, 0.25);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: var(--primary);
+}
+
+.toggle-card input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: var(--radius-btn);
+    font-family: var(--font-main);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: #FFFFFF;
+}
+.btn-primary:hover {
+    background: var(--primary-hover);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.btn-accent {
+    background: linear-gradient(135deg, var(--primary), #0284C7);
+    color: #FFFFFF;
+}
+.btn-accent:hover {
+    opacity: 0.95;
+    box-shadow: 0 6px 18px rgba(79, 70, 229, 0.35);
+}
+
+.btn-success {
+    background: var(--success);
+    color: #FFFFFF;
+}
+.btn-success:hover {
+    background: var(--success-hover);
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+}
+
+.btn-info {
+    background: var(--info);
+    color: #FFFFFF;
+}
+.btn-info:hover {
+    background: var(--info-hover);
+}
+
+.btn-outline {
+    background: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-dark);
+}
+.btn-outline:hover {
+    background: var(--bg-input);
+}
+
+.btn-danger-outline {
+    background: transparent;
+    border-color: rgba(239, 68, 68, 0.3);
+    color: var(--danger);
+}
+.btn-danger-outline:hover {
+    background: var(--danger);
+    color: #FFFFFF;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+}
+
+.btn-lg {
+    padding: 12px 22px;
+    font-size: 0.95rem;
+}
+
+.btn-xl {
+    padding: 14px 28px;
+    font-size: 1.05rem;
+    width: 100%;
+}
+
+/* Result Card */
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.result-header h3 {
+    font-size: 1.2rem;
+    color: var(--text-dark);
+}
+
+.result-header p {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.download-group {
+    display: flex;
+    gap: 12px;
+}
+
+/* Section Tabs */
+.section-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 2px;
+    overflow-x: auto;
+}
+
+.section-tab-item {
+    padding: 8px 16px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+}
+
+.section-tab-item.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+/* Spreadsheet Table */
+.table-scroll-container {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    max-height: 450px;
+    margin-bottom: 16px;
+}
+
+.excel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: #FFFFFF;
+}
+
+.excel-table th {
+    background: #F8FAFC;
+    color: var(--primary);
+    font-weight: 600;
+    padding: 10px 14px;
+    border: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+}
+
+.excel-table td {
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+}
+
+.excel-table td input {
+    width: 100%;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    font-size: inherit;
+    background: transparent;
+    color: var(--text-dark);
+}
+
+.excel-table td.is-number input {
+    text-align: right;
+    font-family: var(--font-code);
+    color: #059669;
+    font-weight: 600;
+}
+
+.grid-tools {
+    display: flex;
+    gap: 10px;
+}
+
+/* Simple Loading Overlay */
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(248, 250, 252, 0.9);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.loader-box {
+    text-align: center;
+    background: #FFFFFF;
+    padding: 36px 48px;
+    border-radius: var(--radius-card);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    border: 1px solid var(--border-color);
+}
+
+.loader-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(79, 70, 229, 0.15);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px auto;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
