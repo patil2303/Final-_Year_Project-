@@ -1,6 +1,6 @@
 # 🔄 End-to-End Project Workflow & Architecture
 
-This document provides a comprehensive breakdown of **what happens inside this project**, **how each component works**, and **how data flows** from an uploaded photo or PDF into a formatted Excel (`.xlsx`) spreadsheet or CSV file using our **100% On-Device Local Machine Learning Pipeline**.
+This document provides a comprehensive breakdown of **what happens inside this project**, **how each component works**, and **how data flows** from an uploaded photo or PDF into a formatted Excel (`.xlsx`) spreadsheet or CSV file using our **Multi-Tier Edge-Cloud Hybrid Pipeline**.
 
 ---
 
@@ -26,10 +26,10 @@ This document provides a comprehensive breakdown of **what happens inside this p
                         │
                         ▼
        ┌───────────────────────────────────┐
-       │ 3. OpenCV Morphological Grid      │
-       │    • Horizontal & Vertical Kernels│
-       │    • Intersection Point Detection │
-       │    • Cell Matrix Bounding Boxes   │
+       │ 3. Gemini Vision Layout Separation│
+       │    • Document Structure Parsing   │
+       │    • Column Header Extraction     │
+       │    • Row/Cell Matrix Alignment    │
        └───────────────────────────────────┘
                         │
                         ▼
@@ -42,18 +42,16 @@ This document provides a comprehensive breakdown of **what happens inside this p
                         │
                         ▼
        ┌───────────────────────────────────┐
-       │ 5. Major Project Domain Services │
-       │    • Student Metadata Extraction  │
-       │    • Levenshtein Branch Matcher   │
-       │    • Ink Density Sum Verifier     │
+       │ 5. Interactive Spreadsheet UI     │
+       │    • Edit cells & headers         │
+       │    • Add/Remove rows & columns    │
        └───────────────────────────────────┘
                         │
                         ▼
        ┌───────────────────────────────────┐
-       │ 6. Interactive Web UI & Exporters │
-       │    • Student Metadata Banner      │
-       │    • Editable Spreadsheet Grid    │
-       │    • OpenPyXL Excel & CSV Download│
+       │ 6. Excel & CSV Export             │
+       │    • Styled OpenPyXL (.xlsx)      │
+       │    • Sanitized CSV Exporter       │
        └───────────────────────────────────┘
 ```
 
@@ -73,9 +71,12 @@ This document provides a comprehensive breakdown of **what happens inside this p
 - **Auto-Deskew & Denoising**:
   Detects document rotation angle using Minimum Area Rectangles and applies bilateral filtering to smooth background noise while keeping edges crisp.
 
-### Phase 3: Morphological Grid & Line Extraction (`backend/section_detector.py`)
-- Isolates table grid lines using OpenCV horizontal ($K_h$) and vertical ($K_v$) structuring elements.
-- Extracts junction coordinate points $(x, y, w, h)$ for every individual cell crop.
+### Phase 3: Structural Layout & Grid Separation (`backend/gemini_vision_engine.py`)
+- Preprocessed grayscale image is passed to Gemini Multimodal Vision.
+- The model parses the structural table geometry:
+  - Identifies header rows (`Q.No`, `1a`, `1b`, `Total`, `Sign`).
+  - Aligns data cells into exact column positions.
+  - Returns standardized JSON output.
 
 ### Phase 4: Custom PyTorch CNN Classification (`backend/mnist_classifier.py` & `backend/ocr_engine.py`)
 - Single digit cell crops are passed through our custom **3-Block Convolutional Neural Network** (`backend/models/mnist_cnn.pt`).
@@ -84,12 +85,8 @@ This document provides a comprehensive breakdown of **what happens inside this p
   - Fully-connected dense layer with Dropout (0.5).
   - Test-Time Augmentation (TTA) 5-crop majority voting for low-confidence samples.
 
-### Phase 5: Domain Metadata & Verification Services (`backend/services/`)
-- **Student Metadata**: Extracts PRN, Student Name, Branch (using Levenshtein string distance matching), Division, and Semester.
-- **Marks Verification**: Analyzes dark ink pixel density after margin shaving and validates that question scores sum up to the total score.
-
-### Phase 6: Interactive Web UI & Export (`static/js/app.js` & `backend/data_formatter.py`)
-- Extracted data is presented in an in-browser spreadsheet editor with a **Student & Document Metadata Banner**.
+### Phase 5: Interactive Web UI & Export (`static/js/app.js` & `backend/data_formatter.py`)
+- Extracted data is presented in an in-browser spreadsheet editor.
 - Export options:
   - **Excel (`.xlsx`)**: Formatted headers, alternating row colors, auto-adjusted column widths.
   - **CSV (`.csv`)**: Formula injection sanitization (`=`, `+`, `-`, `@` stripping).
