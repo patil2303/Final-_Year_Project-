@@ -9,6 +9,7 @@ This project has been upgraded to a **Comprehensive Final Year Major Project** f
 1. **Universal Document Digitization & Excel Conversion**: Photo/PDF to formatted `.xlsx` workbooks and CSV files using a **Multi-Tier Edge-Cloud Hybrid Pipeline**.
 2. **Student Metadata Extraction**: Extracts PRN, Student Name, Branch, Division, Semester, and Course title using Levenshtein distance fuzzy matching and regex validation (`/api/extract/header`).
 3. **Question-Wise Mark Extraction & Sum Verification**: Performs ink density heuristic analysis on handwritten cell crops and validates that question marks sum up correctly to the recorded total score (`/api/extract/marks_verification`).
+4. **Interactive Spreadsheet & Metadata UI**: Displays a dedicated **Student Metadata Header Banner** in the browser alongside editable spreadsheet grids and styled Excel downloads.
 
 ---
 

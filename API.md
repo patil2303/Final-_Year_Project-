@@ -1,6 +1,6 @@
-# 🔑 Gemini API Integration & Purpose Documentation
+# 🔑 API Integration & Endpoints Purpose Documentation
 
-This document explains why and how the **Photo & PDF to Excel Converter** project utilizes the **Google Gemini Multimodal Vision API key** (`GEMINI_API_KEY`) within the **Multi-Tier Edge-Cloud Hybrid Architecture**.
+This document explains the API endpoints and integration purpose for the **Photo & PDF to Excel Converter** project within the **Multi-Tier Edge-Cloud Hybrid Architecture**.
 
 ---
 
@@ -24,34 +24,16 @@ In our **Hybrid Engine**, the workload is split between local computer vision / 
 
 ---
 
-## ✨ Key Capabilities Powered by Gemini Vision API in Hybrid Engine
+## 🌐 Complete Backend Endpoints List
 
-1. **Flawless Marksheet & Exam Paper Grid Separation**:
-   - Correctly identifies complex table headers (`Q.No`, `1a`, `1b`, `1c`, `1d`, `1e`, `1f`, `2a`, `2b`, `3a`, `3b`, `Total`, `Sign of Examiner`).
-   - Extracts max marks, awarded marks, parenthesized scores (e.g. `(3)`), fractions (e.g. `11/15`), and examiner signatures without data corruption.
-
-2. **Universal Document Layout Recognition**:
-   - Extracts structured grids from **marksheets, invoices, receipts, financial reports, handwritten notes, forms, and multi-page PDFs**.
-
-3. **Strict Structured JSON Output**:
-   - Returns standardized JSON data matching the application's interactive spreadsheet format:
-     ```json
-     {
-       "sections": [
-         {
-           "title": "SECTION 1",
-           "headers": ["Q.No", "1a", "1b", "Total", "Sign"],
-           "rows": [
-             ["2", "2", "2", "20", ""],
-             ["1", "2", "2", "11/15", "Bhoj"]
-           ]
-         }
-       ]
-     }
-     ```
-
-4. **Robust Fallback Mechanism**:
-   - If the API key is offline or encounters rate limits, the backend automatically falls back to local OpenCV morphological line kernels + EasyOCR without interrupting user execution.
+| Endpoint | HTTP Method | Description |
+| :--- | :--- | :--- |
+| `/api/upload` | `POST` | Universal file ingestion (PDF, PNG, JPG, WEBP, TIFF, BMP). |
+| `/api/extract` | `POST` | Executes Hybrid Edge-Cloud OCR table extraction. |
+| `/api/extract/header` | `POST` | Major Project Endpoint: Student metadata extraction (PRN, Name, Branch, Div, Sem). |
+| `/api/extract/marks_verification` | `POST` | Major Project Endpoint: Cell ink density check & question mark sum verification. |
+| `/api/export/excel` | `POST` | Generates formatted Excel workbook (`.xlsx`). |
+| `/api/export/csv` | `POST` | Generates sanitized CSV file (`.csv`). |
 
 ---
 

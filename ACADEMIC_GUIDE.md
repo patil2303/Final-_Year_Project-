@@ -11,6 +11,7 @@ The architecture combines:
 1. **OpenCV Grayscale Signal Processing**: CLAHE contrast normalization, deskewing, and noise suppression.
 2. **Google Gemini Multimodal Vision AI**: Structural table layout parsing, column header detection, and row cell matrix separation.
 3. **Custom Local PyTorch 3-Block CNN**: On-device handwritten digit classification trained on 70,000 MNIST dataset samples achieving **99.55% test accuracy**.
+4. **Domain Services**: Student metadata extraction (PRN, Branch Levenshtein normalization) and ink density mark sum verification.
 
 ---
 
@@ -44,6 +45,14 @@ The architecture combines:
                                └────────────────┬────────────────┘
                                                 │
                                                 ▼
+                               ┌─────────────────────────────────┐
+                               │ 🆔 STEP 4: DOMAIN SERVICES      │
+                               │ 1. Student Metadata Extractor   │
+                               │ 2. Levenshtein Branch Matcher   │
+                               │ 3. Mark Sum Verifier            │
+                               └────────────────┬────────────────┘
+                                                │
+                                                ▼
                                 [ Interactive Editor & Exporters ]
 ```
 
@@ -73,7 +82,7 @@ The architecture combines:
 ## 🗣️ Sample Viva Examination Questions & Answers
 
 ### Q1: "What is your main algorithmic contribution in this project?"
-> *"My primary contribution is a custom 3-block Convolutional Neural Network implemented in PyTorch for handwritten digit classification (`backend/mnist_classifier.py`), combined with OpenCV signal preprocessing. The model was trained on 70,000 MNIST samples, achieving 99.55% test accuracy. Additionally, I implemented an Edge-Cloud Hybrid Architecture where cloud vision handles complex layout separation while our local PyTorch model performs high-precision digit classification."*
+> *"My primary contribution is a custom 3-block Convolutional Neural Network implemented in PyTorch for handwritten digit classification (`backend/mnist_classifier.py`), combined with OpenCV signal preprocessing and domain metadata verification services. The model was trained on 70,000 MNIST samples, achieving 99.55% test accuracy."*
 
 ### Q2: "How does the system handle irregular or skewed table layouts?"
 > *"We use OpenCV deskewing and CLAHE adaptive contrast enhancement followed by Gemini Vision AI layout parsing. Gemini detects table boundaries and column alignment, and individual cell crops are evaluated using our local PyTorch CNN classifier with Test-Time Augmentation (TTA)."*
@@ -86,6 +95,7 @@ The architecture combines:
 ## 📁 Key File Locations for Viva Review
 
 - 📓 **Model Training & Loss Curves**: [MNIST (1).ipynb](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/MNIST%20%281%29.ipynb)
+- 🎓 **Major Project Guide**: [MAJOR_PROJECT_GUIDE.md](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/MAJOR_PROJECT_GUIDE.md)
 - ⚡ **Hybrid Engine Workflow**: [Hybrid.md](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/Hybrid.md)
 - 🧠 **PyTorch CNN Model Architecture**: [mnist_classifier.py](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/backend/mnist_classifier.py)
 - 🌐 **Grayscale & Layout Engine**: [gemini_vision_engine.py](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/backend/gemini_vision_engine.py)

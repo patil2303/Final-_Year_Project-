@@ -42,16 +42,18 @@ This document provides a comprehensive breakdown of **what happens inside this p
                         │
                         ▼
        ┌───────────────────────────────────┐
-       │ 5. Interactive Spreadsheet UI     │
-       │    • Edit cells & headers         │
-       │    • Add/Remove rows & columns    │
+       │ 5. Major Project Domain Services │
+       │    • Student Metadata Extraction  │
+       │    • Levenshtein Branch Matcher   │
+       │    • Ink Density Sum Verifier     │
        └───────────────────────────────────┘
                         │
                         ▼
        ┌───────────────────────────────────┐
-       │ 6. Excel & CSV Export             │
-       │    • Styled OpenPyXL (.xlsx)      │
-       │    • Sanitized CSV Exporter       │
+       │ 6. Interactive Web UI & Exporters │
+       │    • Student Metadata Banner      │
+       │    • Editable Spreadsheet Grid    │
+       │    • OpenPyXL Excel & CSV Download│
        └───────────────────────────────────┘
 ```
 
@@ -85,8 +87,12 @@ This document provides a comprehensive breakdown of **what happens inside this p
   - Fully-connected dense layer with Dropout (0.5).
   - Test-Time Augmentation (TTA) 5-crop majority voting for low-confidence samples.
 
-### Phase 5: Interactive Web UI & Export (`static/js/app.js` & `backend/data_formatter.py`)
-- Extracted data is presented in an in-browser spreadsheet editor.
+### Phase 5: Domain Metadata & Verification Services (`backend/services/`)
+- **Student Metadata**: Extracts PRN, Student Name, Branch (using Levenshtein string distance matching), Division, and Semester.
+- **Marks Verification**: Analyzes dark ink pixel density after margin shaving and validates that question scores sum up to the total score.
+
+### Phase 6: Interactive Web UI & Export (`static/js/app.js` & `backend/data_formatter.py`)
+- Extracted data is presented in an in-browser spreadsheet editor with a **Student & Document Metadata Banner**.
 - Export options:
   - **Excel (`.xlsx`)**: Formatted headers, alternating row colors, auto-adjusted column widths.
   - **CSV (`.csv`)**: Formula injection sanitization (`=`, `+`, `-`, `@` stripping).
