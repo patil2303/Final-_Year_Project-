@@ -36,6 +36,19 @@ def detect_sections_and_tables(ocr_items: List[Dict[str, Any]], img_shape: tuple
                     "confidence": t.get("confidence", 0.95)
                 }
 
+        # Check if Row 0 contains text headers (e.g. "1a", "1b", "Total", "Sign")
+        import re
+        row0_texts = [cell["text"] for cell in grid_matrix[0] if cell["text"]]
+        has_text_headers = any(re.search(r'[a-zA-Z]', txt) for txt in row0_texts)
+
+        if has_text_headers and len(row0_texts) >= max(2, int(total_cols * 0.15)):
+            headers = [grid_matrix[0][c]["text"] or f"Column {c+1}" for c in range(total_cols)]
+            grid_matrix = grid_matrix[1:]  # remove header row from data
+            total_rows = len(grid_matrix)
+            print(f"[Section Detector] Promoted Row 0 to table headers: {headers}")
+        else:
+            headers = [f"Column {c+1}" for c in range(total_cols)]
+
         print(f"[Section Detector] Created explicit grid section: {total_rows} rows x {total_cols} columns")
 
         return [{
@@ -108,8 +121,6 @@ def detect_sections_and_tables(ocr_items: List[Dict[str, Any]], img_shape: tuple
         while len(col_centroids) < num_cols:
             col_centroids.append(col_centroids[-1] + avg_gap if col_centroids else 0)
 
-    headers = [f"Column {i+1}" for i in range(num_cols)]
-
     grid_matrix = []
     for r in rows:
         row_cells = [{"text": "", "value": "", "is_number": False, "bbox": None, "confidence": 0} for _ in range(num_cols)]
@@ -123,6 +134,21 @@ def detect_sections_and_tables(ocr_items: List[Dict[str, Any]], img_shape: tuple
                 "confidence": t.get("confidence", 0.5)
             }
         grid_matrix.append(row_cells)
+
+    # Check if Row 0 contains text headers (e.g. "Q. No.", "1a", "Date", "Description", "Total")
+    import re
+    if grid_matrix:
+        row0_texts = [cell["text"] for cell in grid_matrix[0] if cell["text"]]
+        has_text_headers = any(re.search(r'[a-zA-Z]', txt) for txt in row0_texts)
+
+        if has_text_headers and len(row0_texts) >= max(2, int(num_cols * 0.15)):
+            headers = [grid_matrix[0][c]["text"] or f"Column {c+1}" for c in range(num_cols)]
+            grid_matrix = grid_matrix[1:]  # remove header row from data
+            print(f"[Section Detector] Freeform Mode promoted Row 0 to table headers: {headers}")
+        else:
+            headers = [f"Column {i+1}" for i in range(num_cols)]
+    else:
+        headers = [f"Column {i+1}" for i in range(num_cols)]
 
     return [{
         "section_id": "sec_1",

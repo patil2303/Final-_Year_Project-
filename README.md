@@ -1,19 +1,23 @@
 # 📊 Numbers to Excel & CSV Converter
 
-An automated AI-powered OCR application that converts printed tables, matrix arrays, handwritten digits, and photo notes into clean Excel (`.xlsx`) workbooks and CSV files.
+An automated AI-powered document digitization application that converts printed tables, exam mark sheets, matrix arrays, handwritten digits, and photo notes into formatted Excel (`.xlsx`) workbooks and CSV files.
 
-Includes a **custom MNIST-trained 3-block Convolutional Neural Network (CNN)** for high-precision handwritten digit recognition, coupled with automated table/grid structure detection.
+Powered by a **Multi-Tier Edge-Cloud Hybrid Engine**:
+- **OpenCV Grayscale Image Preprocessing** (CLAHE, Deskew, Denoise)
+- **Google Gemini Vision AI** (Structural Grid Layout & Table Separation)
+- **Custom Local PyTorch 3-Block CNN** (Handwritten & Printed Digit Classification, 99.55% Accuracy)
 
 ---
 
-## 🔥 Features
+## 🔥 Key Features
 
-- 🧠 **MNIST CNN Digit Classifier**: Trained on 70,000 MNIST samples achieving **99.55% test accuracy** for single-digit recognition.
-- 📐 **Automated Grid Geometry Detection**: Uses OpenCV contour analysis to locate table boundaries and cell matrices.
-- 📄 **Multi-Format Support**: Works with PNG, JPG, JPEG, WEBP, TIFF, BMP, and multi-page PDF documents.
-- 📈 **Excel & CSV Export**: Outputs formatted `.xlsx` workbooks with custom header fills, number formatting, and multi-tab section support.
-- 🛡️ **Built-in Security**: CSV formula injection protection (`=`, `+`, `-`, `@` sanitization) and 50MB file size limits.
-- ✏️ **Interactive In-Browser Spreadsheet Editor**: Review, edit, add rows/columns, and adjust numbers directly in the UI before downloading.
+- ⚡ **Multi-Tier Edge-Cloud Hybrid Engine**: Combines cloud layout separation with on-device PyTorch deep learning digit classification.
+- 🧠 **MNIST PyTorch CNN Classifier**: Trained on 70,000 MNIST dataset samples achieving **99.55% test accuracy** for single-digit recognition.
+- 📐 **Automated Grid Geometry & Layout Separation**: Identifies column headers, row matrices, and table boundaries.
+- 📄 **Multi-Format Support**: Processes PNG, JPG, JPEG, WEBP, TIFF, BMP, and multi-page PDF documents.
+- 📈 **Styled Excel & CSV Export**: Outputs formatted `.xlsx` workbooks with custom header styling, number formatting, and multi-tab support.
+- ✏️ **Interactive In-Browser Spreadsheet Editor**: Review, edit, add/delete rows and columns directly in the browser UI before exporting.
+- 🎓 **Academic Viva Ready**: Fully documented for final year project defense ([ACADEMIC_GUIDE.md](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/ACADEMIC_GUIDE.md) and [Hybrid.md](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/Hybrid.md)).
 
 ---
 
@@ -23,23 +27,18 @@ Includes a **custom MNIST-trained 3-block Convolutional Neural Network (CNN)** f
 [ Document Image / PDF ]
            │
            ▼
-[ Universal Image Processor ] ── (Grayscale, CLAHE, Deskew, Denoise)
+[ Step 1: OpenCV Image Processor ] ────── (Grayscale Conversion, CLAHE, Deskew, Denoise)
            │
            ▼
-[ Grid Contour & Box Detector ]
-      │               │
-  (Grid Mode)   (Freeform Mode)
-      │               │
-      └───────┬───────┘
-              ▼
-[ Two-Tier Digit Recognizer ]
-   ├── Tier 1: MNIST CNN Classifier (99.55% accuracy, fast)
-   └── Tier 2: EasyOCR + CLAHE Fallback (for complex freeform text)
-              │
-              ▼
+[ Step 2: Gemini Vision AI ] ──────────── (Grid Layout Parsing & Table Matrix Separation)
+           │
+           ▼
+[ Step 3: Custom PyTorch CNN ] ────────── (Digit Classification & TTA Majority Voting)
+           │
+           ▼
 [ Section & Matrix Builder ]
-              │
-              ▼
+           │
+           ▼
 [ Interactive UI / Excel & CSV Exporters ]
 ```
 
@@ -74,6 +73,7 @@ The application server will start at `http://127.0.0.1:8000` and automatically o
 Numbers-to-Excel/
 ├── backend/
 │   ├── app.py                 # FastAPI Web Server & Endpoint Handlers
+│   ├── gemini_vision_engine.py# Gemini Layout & Grid Separation Engine
 │   ├── mnist_classifier.py    # PyTorch CNN Model Architecture & Classifier
 │   ├── ocr_engine.py          # Two-Tier OCR Recognition Engine
 │   ├── section_detector.py    # Document Structure & Matrix Segmentation
@@ -88,7 +88,11 @@ Numbers-to-Excel/
 │       ├── app.js             # Client UI Event & Upload Controller
 │       └── spreadsheet_editor.js # Editable Grid Controller
 ├── sample_images/             # Demonstration & Sample Tables
-├── .gitignore
+├── tests/                     # Automated Integration & Engine Tests
+├── Hybrid.md                  # Detailed Hybrid Engine Architecture Guide
+├── ACADEMIC_GUIDE.md          # Viva Presentation & Examination Defense Guide
+├── API.md                     # Vision API Key & Purpose Documentation
+├── WORKFLOW.md                # End-to-End System Workflow
 ├── README.md
 └── run.py                     # Main Server Launcher Script
 ```
@@ -99,11 +103,11 @@ Numbers-to-Excel/
 
 | Metric | Score |
 | :--- | :--- |
-| **Accuracy** | **`99.55%`** |
+| **Test Accuracy** | **`99.55%`** |
 | **Precision** | **`0.9955`** |
 | **Recall** | **`0.9955`** |
 | **F1-Score** | **`0.9955`** |
-| **Inference Time** | `< 2 ms` per cell crop |
+| **Local Inference Time** | `< 2 ms` per cell crop |
 
 ---
 

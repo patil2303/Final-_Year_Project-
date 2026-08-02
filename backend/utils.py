@@ -193,3 +193,68 @@ def crop_roi(img: np.ndarray, x: int, y: int, width: int, height: int) -> np.nda
     x2 = max(x1 + 1, min(x + width, w))
     y2 = max(y1 + 1, min(y + height, h))
     return img[y1:y2, x1:x2]
+
+def detect_auto_crop(img: np.ndarray) -> dict:
+    """
+    Detects the main table grid or section on the page using OpenCV line & contour analysis.
+    Returns ROI dict: {"x": int, "y": int, "width": int, "height": int}
+    """
+    try:
+        h, w = img.shape[:2]
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img
+        
+        # Adaptive Thresholding for grid line detection
+        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+        thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 4)
+        
+        # Detect horizontal grid lines
+        kernel_h = cv2.getStructuringElement(cv2.MORPH_RECT, (max(15, w // 25), 1))
+        horizontal = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel_h)
+        
+        # Detect vertical grid lines
+        kernel_v = cv2.getStructuringElement(cv2.MORPH_RECT, (1, max(15, h // 25)))
+        vertical = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel_v)
+        
+        # Combine grid lines
+        table_grid = cv2.add(horizontal, vertical)
+        
+        # Dilate grid lines to join broken grid cells
+        kernel_dilate = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        grid_dilated = cv2.dilate(table_grid, kernel_dilate, iterations=2)
+        
+        contours, _ = cv2.findContours(grid_dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        best_box = None
+        max_area = 0
+        
+        for cnt in contours:
+            bx, by, bw, bh = cv2.boundingRect(cnt)
+            area = bw * bh
+            # Filter contours that look like table sections (at least 2% of total image area)
+            if area > (w * h * 0.02) and bw > (w * 0.2) and bh > 40:
+                if area > max_area:
+                    max_area = area
+                    best_box = {"x": int(bx), "y": int(by), "width": int(bw), "height": int(bh)}
+        
+        # Fallback to general dark ink / text region contour if explicit grid lines aren't found
+        if not best_box:
+            kernel_text = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 5))
+            text_dilated = cv2.dilate(thresh, kernel_text, iterations=2)
+            contours, _ = cv2.findContours(text_dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for cnt in contours:
+                bx, by, bw, bh = cv2.boundingRect(cnt)
+                area = bw * bh
+                if area > (w * h * 0.03) and bw > (w * 0.25):
+                    if area > max_area:
+                        max_area = area
+                        best_box = {"x": int(bx), "y": int(by), "width": int(bw), "height": int(bh)}
+                        
+        if not best_box:
+            # Default to full image with 2% margin padding
+            best_box = {"x": 0, "y": 0, "width": w, "height": h}
+            
+        return best_box
+    except Exception as e:
+        print(f"[Auto Crop Error] {e}")
+        return {"x": 0, "y": 0, "width": img.shape[1], "height": img.shape[0]}
+

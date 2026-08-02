@@ -53,7 +53,7 @@ def main():
     print()
 
     # Run OCR
-    tokens = run_ocr_on_image(img, is_handwritten=True, digits_only=True)
+    tokens = run_ocr_on_image(img)
     print(f"\nTotal tokens detected: {len(tokens)}")
     
     # Run section detection
