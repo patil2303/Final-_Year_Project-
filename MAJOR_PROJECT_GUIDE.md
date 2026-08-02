@@ -5,11 +5,14 @@
 
 ## 🏛️ Executive Summary
 
-This project has been upgraded to a **Comprehensive Final Year Major Project** for university evaluation. It provides an end-to-end solution for:
-1. **Universal Document Digitization & Excel Conversion**: Photo/PDF to formatted `.xlsx` workbooks and CSV files using a **Multi-Tier Edge-Cloud Hybrid Pipeline**.
+This project is a **Comprehensive Final Year Major Project** for university evaluation. It provides an end-to-end solution for:
+1. **100% On-Device Document Digitization & Excel Conversion**: Photo/PDF to formatted `.xlsx` workbooks and CSV files using a **Local PyTorch 3-Block CNN (99.55% Accuracy)** and **OpenCV Morphological Line Extraction**.
 2. **Student Metadata Extraction**: Extracts PRN, Student Name, Branch, Division, Semester, and Course title using Levenshtein distance fuzzy matching and regex validation (`/api/extract/header`).
 3. **Question-Wise Mark Extraction & Sum Verification**: Performs ink density heuristic analysis on handwritten cell crops and validates that question marks sum up correctly to the recorded total score (`/api/extract/marks_verification`).
 4. **Interactive Spreadsheet & Metadata UI**: Displays a dedicated **Student Metadata Header Banner** in the browser alongside editable spreadsheet grids and styled Excel downloads.
+
+> [!IMPORTANT]
+> **API Key Independence**: The primary system runs **100% locally on your computer** without any external cloud API keys, internet connectivity, or third-party paid subscriptions.
 
 ---
 
@@ -36,8 +39,8 @@ This project has been upgraded to a **Comprehensive Final Year Major Project** f
                ┌───────────────────────────────┼───────────────────────────────┐
                ▼                               ▼                               ▼
 ┌──────────────────────────────┐ ┌──────────────────────────────┐ ┌──────────────────────────────┐
-│  Multi-Tier Hybrid Engine    │ │ Header Extraction Service    │ │ Marks Verification Service   │
-│ • Gemini Layout Separation   │ │ • Student Name, PRN, Branch  │ │ • Ink Pixel Density Analysis │
+│  Local PyTorch CNN Core      │ │ Header Extraction Service    │ │ Marks Verification Service   │
+│ • OpenCV Morph Grid Detector │ │ • Student Name, PRN, Branch  │ │ • Ink Pixel Density Analysis │
 │ • Local PyTorch CNN Classifier│ │ • Levenshtein Fuzzy Matching │ │ • Question Score Extraction  │
 │   (99.55% Test Accuracy)     │ │ • Regex Validation           │ │ • Sum Verification Engine    │
 └──────────────┬───────────────┘ └──────────────┬───────────────┘ └──────────────┬───────────────┘
@@ -68,11 +71,14 @@ This project has been upgraded to a **Comprehensive Final Year Major Project** f
 
 ## 🗣️ Major Project Viva Q&A Cheat Sheet
 
-### Q1: "What makes this suitable for a Major Final Year Project?"
-> *"Our project addresses both generalized document digitization and domain-specific university exam mark sheet verification. It combines OpenCV signal processing, a custom PyTorch Convolutional Neural Network (99.55% test accuracy), Gemini Vision AI layout parsing, Levenshtein fuzzy text normalization, and automated mathematical total verification."*
+### Q1: "Does your project require any external API key to run?"
+> *"No. The entire digit recognition, table boundary extraction, student metadata processing, and sum verification pipeline runs 100% on-device on our local machine using PyTorch and OpenCV. Cloud APIs are completely optional and not required."*
 
-### Q2: "How do you handle background paper noise and shadows?"
+### Q2: "What is your main algorithmic contribution in this project?"
+> *"Our project combines a custom 3-block Convolutional Neural Network implemented in PyTorch for handwritten digit classification (`backend/mnist_classifier.py`), OpenCV morphological line kernel extraction (`backend/section_detector.py`), Levenshtein fuzzy string matching, and automated mathematical total verification."*
+
+### Q3: "How do you handle background paper noise and shadows?"
 > *"We apply Contrast Limited Adaptive Histogram Equalization (CLAHE) across $8 \times 8$ tile grids in OpenCV, followed by bilateral filtering and adaptive thresholding."*
 
-### Q3: "How does the system prevent student PRN misreads?"
+### Q4: "How does the system prevent student PRN misreads?"
 > *"PRN extraction uses segmented single-digit bounding box cropping combined with numeric regex whitelisting and length validation."*

@@ -1,6 +1,6 @@
 # 🔄 End-to-End Project Workflow & Architecture
 
-This document provides a comprehensive breakdown of **what happens inside this project**, **how each component works**, and **how data flows** from an uploaded photo or PDF into a formatted Excel (`.xlsx`) spreadsheet or CSV file using our **Multi-Tier Edge-Cloud Hybrid Pipeline**.
+This document provides a comprehensive breakdown of **what happens inside this project**, **how each component works**, and **how data flows** from an uploaded photo or PDF into a formatted Excel (`.xlsx`) spreadsheet or CSV file using our **100% On-Device Local Machine Learning Pipeline**.
 
 ---
 
@@ -26,10 +26,10 @@ This document provides a comprehensive breakdown of **what happens inside this p
                         │
                         ▼
        ┌───────────────────────────────────┐
-       │ 3. Gemini Vision Layout Separation│
-       │    • Document Structure Parsing   │
-       │    • Column Header Extraction     │
-       │    • Row/Cell Matrix Alignment    │
+       │ 3. OpenCV Morphological Grid      │
+       │    • Horizontal & Vertical Kernels│
+       │    • Intersection Point Detection │
+       │    • Cell Matrix Bounding Boxes   │
        └───────────────────────────────────┘
                         │
                         ▼
@@ -73,12 +73,9 @@ This document provides a comprehensive breakdown of **what happens inside this p
 - **Auto-Deskew & Denoising**:
   Detects document rotation angle using Minimum Area Rectangles and applies bilateral filtering to smooth background noise while keeping edges crisp.
 
-### Phase 3: Structural Layout & Grid Separation (`backend/gemini_vision_engine.py`)
-- Preprocessed grayscale image is passed to Gemini Multimodal Vision.
-- The model parses the structural table geometry:
-  - Identifies header rows (`Q.No`, `1a`, `1b`, `Total`, `Sign`).
-  - Aligns data cells into exact column positions.
-  - Returns standardized JSON output.
+### Phase 3: Morphological Grid & Line Extraction (`backend/section_detector.py`)
+- Isolates table grid lines using OpenCV horizontal ($K_h$) and vertical ($K_v$) structuring elements.
+- Extracts junction coordinate points $(x, y, w, h)$ for every individual cell crop.
 
 ### Phase 4: Custom PyTorch CNN Classification (`backend/mnist_classifier.py` & `backend/ocr_engine.py`)
 - Single digit cell crops are passed through our custom **3-Block Convolutional Neural Network** (`backend/models/mnist_cnn.pt`).

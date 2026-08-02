@@ -76,7 +76,7 @@ class ExtractRequest(BaseModel):
     binarize: bool = False
     auto_deskew: bool = False
     denoise: bool = False
-    engine: str = "hybrid"  # Primary Multi-Tier Edge-Cloud Hybrid Pipeline
+    engine: str = "local"  # Default: 100% Local Offline PyTorch CNN + OpenCV Morphological Pipeline
 
 class ExportRequest(BaseModel):
     sections: List[Dict[str, Any]]

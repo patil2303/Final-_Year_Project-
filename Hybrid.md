@@ -1,10 +1,10 @@
-# ⚡ Multi-Tier Edge-Cloud Hybrid Pipeline Documentation
+# ⚡ Local Machine Learning & Hybrid Architecture Documentation
 
 ---
 
 ## 🏛️ System Architecture Overview
 
-The **Hybrid Pipeline** is a state-of-the-art **Multi-Tier Edge-Cloud Document Processing Engine**. It combines **OpenCV Image Processing**, **Google Gemini Multimodal Vision AI** (for layout & grid separation), a **Custom Local PyTorch 3-Block CNN** (for digit recognition), and **Domain Extraction Services** (for student metadata and mark sum verification).
+This project implements an **On-Device Local Machine Learning Core** with an optional cloud extension. It combines **OpenCV Image Processing**, **Custom Local PyTorch 3-Block CNN** (for digit recognition), and **Domain Extraction Services** (for student metadata and mark sum verification).
 
 ```text
 [ Input Document (Photo / Scanned PDF) ]
@@ -18,10 +18,10 @@ The **Hybrid Pipeline** is a state-of-the-art **Multi-Tier Edge-Cloud Document P
                    │
                    ▼
 ┌──────────────────────────────────────────────────┐
-│  STEP 2: Gemini Vision AI Grid & Layout Detector │
-│  - Document layout parsing                       │
-│  - Table boundary & column header extraction     │
-│  - Cell matrix alignment & separation            │
+│  STEP 2: OpenCV Morphological Grid Detector      │
+│  - Horizontal & vertical line kernel extraction  │
+│  - Table boundary & cell matrix segmentation     │
+│  - Junction coordinate extraction                │
 └──────────────────┬───────────────────────────────┘
                    │
                    ▼
@@ -57,13 +57,10 @@ The **Hybrid Pipeline** is a state-of-the-art **Multi-Tier Edge-Cloud Document P
 - **Bilateral Filtering & Deskewing**:
   Removes high-frequency noise while preserving sharp digit boundaries and corrects camera rotational tilt.
 
-### 2. STEP 2: Structural Grid Detection & Table Separation (Gemini Vision AI)
-- The preprocessed grayscale image is passed to the Multimodal Vision AI model.
-- **Role of Gemini Vision AI**:
-  - Identifies document structure (exam mark sheets, financial invoices, matrices, forms).
-  - Detects column header names (e.g. `Q.No`, `1a`, `1b`, `Total`, `Marks`).
-  - Separates table boundaries into aligned row and column grid matrices.
-  - Generates structured JSON schema containing row cell entries.
+### 2. STEP 2: Structural Grid Detection (OpenCV Morphological Engine)
+- **Horizontal Kernel**: $K_h = \text{getStructuringElement}(\text{MORPH\_RECT}, (\text{width}/25, 1))$
+- **Vertical Kernel**: $K_v = \text{getStructuringElement}(\text{MORPH\_RECT}, (1, \text{height}/25))$
+- Identifies table bounding boxes and cell coordinate junctions $(x, y, w, h)$ without needing external API keys.
 
 ### 3. STEP 3: Digit Recognition via Custom PyTorch CNN Model
 - For all single-digit and numeric cell crops within the detected grid, the system runs local deep learning inference using our pre-trained PyTorch model (`backend/models/mnist_cnn.pt`).
@@ -85,24 +82,22 @@ The **Hybrid Pipeline** is a state-of-the-art **Multi-Tier Edge-Cloud Document P
 
 ---
 
-## 🎯 Why This Hybrid Pipeline Is Ideal for Academic Submission
+## 🎯 Why This Local ML Architecture Is Ideal for Academic Submission
 
-1. **Demonstrates Real Engineering Work**:
-   - Custom trained PyTorch CNN model performs local digit recognition.
-   - OpenCV handles image signal processing and grayscale transformations.
-   - Domain services perform fuzzy Levenshtein string matching and sum verification.
-2. **Solves Complex Real-World Document Layouts**:
-   - Cloud Multimodal AI handles irregular layouts, tilted mark sheets, and freeform tables.
-3. **Best of Both Worlds**:
-   - Combine high-level vision layout parsing with on-device deep learning classification and domain verification.
+1. **100% On-Device Code Execution**:
+   - Zero API key dependencies or third-party cloud subscription requirements.
+2. **Demonstrates Real Computer Science & Engineering Work**:
+   - Custom PyTorch CNN digit classification trained on 70,000 images.
+   - OpenCV morphological line kernel signal processing.
+   - Levenshtein string fuzzy matching and mathematical validation algorithms.
 
 ---
 
 ## 📁 Related Source Files
 
-- ⚙️ **Hybrid Pipeline Controller**: [backend/app.py](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/backend/app.py)
+- ⚙️ **Main Server Controller**: [backend/app.py](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/backend/app.py)
 - 🧠 **PyTorch CNN Model**: [backend/mnist_classifier.py](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/backend/mnist_classifier.py)
-- 🌐 **Grayscale & Grid Engine**: [backend/gemini_vision_engine.py](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/backend/gemini_vision_engine.py)
+- 📐 **OpenCV Grid Detector**: [backend/section_detector.py](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/backend/section_detector.py)
 - 🆔 **Metadata Classifier**: [backend/services/header_extraction_service.py](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/backend/services/header_extraction_service.py)
 - ✅ **Marks Verifier**: [backend/services/marks_table_extraction_service.py](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/backend/services/marks_table_extraction_service.py)
 - 📓 **MNIST Model Training Notebook**: [MNIST (1).ipynb](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/MNIST%20%281%29.ipynb)
