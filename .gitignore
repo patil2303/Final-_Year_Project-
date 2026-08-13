@@ -29,3 +29,4 @@ Thumbs.db
 # Temporary scratch & test artifacts
 scratch/
 .pytest_cache/
+testing/

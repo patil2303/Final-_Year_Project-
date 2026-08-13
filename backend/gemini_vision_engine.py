@@ -17,31 +17,68 @@ def _get_gemini_api_key() -> Optional[str]:
     if api_key:
         return api_key.strip()
     
-    # Try reading from .env in project root
-    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
-    if os.path.exists(env_path):
-        try:
-            with open(env_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("GEMINI_API_KEY="):
-                        return line.split("=", 1)[1].strip().strip('"').strip("'")
-        except Exception as e:
-            logger.warning(f"Failed to read .env file: {e}")
+    # Try reading from .env in project root and parent directories
+    project_root = os.path.dirname(os.path.dirname(__file__))
+    parent_root = os.path.dirname(project_root)
+    candidate_paths = [
+        os.path.join(project_root, ".env"),
+        os.path.join(parent_root, ".env"),
+        os.path.join(os.getcwd(), ".env")
+    ]
     
-    # Read from environment or .env file
+    for env_path in candidate_paths:
+        if os.path.exists(env_path):
+            try:
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("GEMINI_API_KEY="):
+                            key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                            if key:
+                                return key
+            except Exception as e:
+                logger.warning(f"Failed to read .env file at {env_path}: {e}")
+    
     return None
 
 
 _PREFERRED_VISION_MODELS = [
-    "models/gemini-3.6-flash",
-    "models/gemini-2.0-flash",
     "models/gemini-3.5-flash",
-    "models/gemini-2.0-flash-lite"
+    "models/gemini-3.6-flash",
+    "models/gemini-2.5-flash"
 ]
 
 
-def extract_with_gemini_vision(img: np.ndarray) -> Optional[List[Dict[str, Any]]]:
+def _clean_and_parse_json(text_out: str) -> dict:
+    """Robustly extracts and parses JSON even if LLM outputs markdown fences, trailing commas, or unquoted fraction strings."""
+    t = text_out.strip()
+    if t.startswith("```json"):
+        t = t[7:]
+    elif t.startswith("```"):
+        t = t[3:]
+    if t.endswith("```"):
+        t = t[:-3]
+    t = t.strip()
+
+    # Wrap unquoted fraction expressions e.g. 11/15 or 3 1/2 in double quotes (fixed-width safe)
+    t = re.sub(r'([,\[]\s*)([0-9]+/[0-9]+)(\s*[,\]])', r'\1"\2"\3', t)
+    t = re.sub(r'([,\[]\s*)([0-9]+\s+[0-9]+/[0-9]+)(\s*[,\]])', r'\1"\2"\3', t)
+
+    try:
+        return json.loads(t)
+    except Exception:
+        # Fix trailing commas: [1, 2,] or {"a": 1,}
+        cleaned = re.sub(r',\s*([\]}])', r'\1', t)
+        try:
+            return json.loads(cleaned)
+        except Exception:
+            match = re.search(r'(\{[\s\S]*\})', cleaned)
+            if match:
+                return json.loads(re.sub(r',\s*([\]}])', r'\1', match.group(1)))
+            raise
+
+
+def extract_with_gemini_vision(img: np.ndarray, return_metadata: bool = False) -> Any:
     """
     Extracts tables, marksheets, forms, or data lists from an image using
     Google Gemini Multimodal Vision AI. Returns structured section dicts
@@ -55,39 +92,64 @@ def extract_with_gemini_vision(img: np.ndarray) -> Optional[List[Dict[str, Any]]
     if img is None or img.size == 0:
         return None
 
-    # Step 1: OpenCV Grayscale Preprocessing
-    if len(img.shape) == 3:
-        gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # Convert back to 3-channel for PNG encoding to ensure API compatibility
-        prep_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2BGR)
+    # Step 1: Resize image to max 1600px dimension for ultra-fast, lightweight upload
+    h, w = img.shape[:2]
+    max_dim = 1600
+    if max(h, w) > max_dim:
+        scale = max_dim / max(h, w)
+        scaled_img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
     else:
-        gray_img = img
-        prep_img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        scaled_img = img
 
-    # Step 2: Encode Grayscale Preprocessed image to Base64 PNG
-    success, buffer = cv2.imencode(".png", prep_img)
+    # Step 2: Encode to JPEG with quality 92 (~250 KB payload for instantaneous API upload)
+    success, buffer = cv2.imencode(".jpg", scaled_img, [cv2.IMWRITE_JPEG_QUALITY, 92])
     if not success or buffer is None:
         logger.error("[Gemini Vision] Image encoding failed")
         return None
     b64_img = base64.b64encode(buffer).decode("utf-8")
 
-    prompt = """You are an expert Document & Vision AI system specializing in grid detection and table separation.
-Your primary task is to analyze this preprocessed grayscale document/image (which may be an exam mark sheet, financial table, invoice, form, or handwritten grid) and detect its structural grid layout.
+    prompt = """You are an expert Document & Vision AI system specializing in academic exam mark sheet analysis, handwriting/cursive name transcription, and sparse table extraction.
+Your task is to analyze this document image (an exam mark sheet / test answer paper) and extract BOTH the student metadata AND the isolated marks table grid with 100% precision.
 
-CRITICAL INSTRUCTIONS FOR GRID SEPARATION & STRUCTURE:
-1. Detect ALL column headers accurately (e.g., "Q.No", "1a", "1b", "1c", "1d", "1e", "1f", "2a", "2b", "Total", "Sign").
-2. Separate all cells into aligned row matrices. Keep exact column alignment for every row.
-3. Extract all numbers, digits, fractions (e.g. "11/15"), parenthesized values, and notes. If a cell is empty/blank, put an empty string "".
+CRITICAL INSTRUCTIONS:
+1. EXTRACT STUDENT & DOCUMENT METADATA FROM THE HEADER:
+   - "student_name": Full student name. Carefully read handwritten or cursive Surname, First Name, and Middle Name (e.g. Surname "Mahadik", First Name "Shrutika", Middle Name "Anil" -> "MAHADIK SHRUTIKA ANIL"). Pay extreme attention to cursive spelling (e.g. Mahadik, Shrutika, Madhavi, Patil, Deshmukh).
+   - "prn": Exact PRN / Registration Number written inside individual digit boxes (e.g., "241051032", "241051033", "231051037"). Read every individual box digit carefully from left to right.
+   - "roll_no": Exact Roll Number located at the top right corner or header (e.g. "SE-46", "44 / SE", "B-63", "44") or "" if not found.
+   - "branch": Department / Branch (e.g., "IT", "CSE", "AIDS", "EXTC").
+   - "division": Division or composite class/division string if written, or "" if blank.
+   - "semester": Semester (e.g., "Sem IV", "IV", "Sem II", "II").
+   - "subject": Subject name written on the sheet (e.g., "CNND", "Physics", "Chemistry").
 
-Return ONLY valid JSON matching this exact structure:
+2. EXTRACT ONLY THE EXAM MARKS TABLE GRID (STRICT CELL SPARSITY RULES):
+   - Locate the marks table grid with columns: ["Q.No.", "1a", "1b", "1c", "1d", "1e", "1f", "2a", "2b", "3a", "3b", "Total", "Sign. of Examiner"]
+   - Row 1: "Max Marks" row contains the maximum marks for each question.
+   - Row 2: "Mark Awarded" / "Marks Obtained" row:
+     * Check EVERY question column independently from left to right.
+     * If a question was unattempted or its cell is BLANK/EMPTY, output strictly an empty string `""`.
+     * STRICT ZERO HALLUCINATION RULE: NEVER fill in marks, repeat values across columns, or copy numbers into blank cells. If a cell has no ink/marks, output `""`.
+     * Note that handwritten marks may include checkmarks, fractions, or circled marks (e.g. '2', '3', '3 1/2', '1/2', '4', '14', '11').
+     * The number in the Total column represents the sum of the student's awarded marks.
+   - STRICT RULE FOR TABLE ISOLATION: DO NOT include document header text or student answers written below "Please start writing from below" inside the marks table grid!
+
+Return ONLY valid JSON matching this schema:
 {
+  "metadata": {
+    "student_name": "Full student name (e.g. SURNAME FIRST_NAME MIDDLE_NAME)",
+    "prn": "Exact PRN number from digit boxes",
+    "roll_no": "Roll number string or ''",
+    "branch": "Branch string or ''",
+    "division": "Division string or ''",
+    "semester": "Semester string or ''",
+    "subject": "Subject name or ''"
+  },
   "sections": [
     {
-      "title": "SECTION 1",
-      "headers": ["Header 1", "Header 2", "Header 3"],
+      "title": "Exam Marks Table",
+      "headers": ["Q.No.", "1a", "1b", "1c", "1d", "1e", "1f", "2a", "2b", "3a", "3b", "Total", "Sign. of Examiner"],
       "rows": [
-        ["val1", "val2", "val3"],
-        ["val1", "val2", "val3"]
+        ["Max Marks", "2", "2", "2", "2", "2", "2", "5", "5", "5", "5", "20", ""],
+        ["Mark Awarded", "", "", "", "", "", "", "", "", "", "", "", ""]
       ]
     }
   ]
@@ -102,7 +164,7 @@ Return ONLY valid JSON matching this exact structure:
                     {"text": prompt},
                     {
                         "inline_data": {
-                            "mime_type": "image/png",
+                            "mime_type": "image/jpeg",
                             "data": b64_img
                         }
                     }
@@ -129,13 +191,15 @@ Return ONLY valid JSON matching this exact structure:
                 if not text_out:
                     continue
 
-                # Parse JSON output
-                parsed = json.loads(text_out)
+                # Parse JSON output robustly
+                parsed = _clean_and_parse_json(text_out)
                 raw_sections = parsed.get("sections", [])
-                if not raw_sections:
+                metadata = parsed.get("metadata", {})
+                
+                if not raw_sections and not metadata:
                     continue
 
-                print(f"[Gemini Vision Engine] Grid layout & separation detected using {model_name}!")
+                print(f"[Gemini Vision Engine] Grid layout & metadata detected using {model_name}!")
                 
                 formatted_sections = []
                 for s_idx, sec in enumerate(raw_sections):
@@ -171,10 +235,11 @@ Return ONLY valid JSON matching this exact structure:
                         "rows": grid_rows,
                         "rows_count": len(grid_rows),
                         "columns_count": num_cols,
-                        "detection_pipeline": "OpenCV Grayscale -> Gemini Layout Separation -> PyTorch CNN Classification"
+                        "detection_pipeline": "OpenCV Grayscale -> Gemini Layout Separation -> PyTorch CNN Classification",
+                        "metadata": metadata
                     })
 
-                return formatted_sections
+                return (formatted_sections, metadata) if return_metadata else formatted_sections
 
         except Exception as e:
             logger.warning(f"[Gemini Vision Engine] Model {model_name} failed: {e}")

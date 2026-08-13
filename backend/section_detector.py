@@ -90,6 +90,31 @@ def detect_sections_and_tables(ocr_items: List[Dict[str, Any]], img_shape: tuple
     if not rows:
         return []
 
+    # Check for Marks Table Header row to isolate the table from top document headers & bottom handwritten answers
+    import re
+    marks_header_idx = -1
+    marks_footer_idx = len(rows)
+
+    for r_idx, r in enumerate(rows):
+        row_text_joined = " ".join([t["text"].lower() for t in r])
+        # Look for table header keywords
+        if any(kw in row_text_joined for kw in ["q.no", "q. no", "1a", "1b", "1c", "2a", "2b", "total", "sign"]):
+            marks_header_idx = r_idx
+            break
+
+    for r_idx, r in enumerate(rows):
+        row_text_joined = " ".join([t["text"].lower() for t in r])
+        if "please start writing" in row_text_joined or "writing from below" in row_text_joined:
+            marks_footer_idx = r_idx
+            break
+
+    if marks_header_idx != -1:
+        # Keep only the rows corresponding to the Marks Table Grid
+        filtered_rows = rows[marks_header_idx:marks_footer_idx]
+        if filtered_rows:
+            rows = filtered_rows
+            print(f"[Section Detector] Isolated Marks Table: {len(rows)} table rows extracted.")
+
     all_tokens = [t for r in rows for t in r]
     avg_box_w = sum(t["bbox"][2] for t in all_tokens) / len(all_tokens)
     max_row_len = max(len(r) for r in rows)

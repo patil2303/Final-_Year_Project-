@@ -1,74 +1,87 @@
-# 📊 Numbers to Excel & CSV Converter
+# 🎓 Academic Marksheet Digitizer & Master Grading Portal
 
-An automated AI-powered document digitization application that converts printed tables, exam mark sheets, matrix arrays, handwritten digits, and photo notes into formatted Excel (`.xlsx`) workbooks and CSV files.
+An AI-powered document digitization and academic marksheet evaluation system that converts printed and handwritten exam marksheets, matrix tables, and student answer sheets into structured **MongoDB Atlas** records and consolidated master **Excel (`.xlsx`) & CSV** grade workbooks.
 
-Powered by a **Multi-Tier Edge-Cloud Hybrid Engine**:
-- **OpenCV Grayscale Image Preprocessing** (CLAHE, Deskew, Denoise)
-- **Google Gemini Vision AI** (Structural Grid Layout & Table Separation)
-- **Custom Local PyTorch 3-Block CNN** (Handwritten & Printed Digit Classification, 99.55% Accuracy)
-- **Student & Marksheet Metadata Services** (PRN, Branch, Division, Semester, Ink Density Filtering, Sum Verification)
+Built with **FastAPI**, **PyTorch CNN (99.55% Acc)**, **Google Gemini Multimodal Vision AI**, and **MongoDB Atlas**.
 
 ---
 
 ## 🔥 Key Features
 
-- ⚡ **Multi-Tier Edge-Cloud Hybrid Engine**: Combines cloud layout separation with on-device PyTorch deep learning digit classification.
-- 🧠 **MNIST PyTorch CNN Classifier**: Trained on 70,000 MNIST dataset samples achieving **99.55% test accuracy** for single-digit recognition.
-- 👤 **Student & Marksheet Metadata Extraction**: Extracts PRN, Student Name, Branch (using Levenshtein fuzzy string matching), Division, and Semester.
-- ✅ **Automated Mark Verification**: Calculates cell ink pixel density and verifies question marks sum up correctly to the recorded total score.
-- 📐 **Automated Grid Geometry & Layout Separation**: Identifies column headers, row matrices, and table boundaries.
-- 📄 **Multi-Format Support**: Processes PNG, JPG, JPEG, WEBP, TIFF, BMP, and multi-page PDF documents.
-- 📈 **Styled Excel & CSV Export**: Outputs formatted `.xlsx` workbooks with custom header styling, number formatting, and multi-tab support.
-- ✏️ **Interactive In-Browser Spreadsheet Editor**: Review, edit, add/delete rows and columns directly in the browser UI with an integrated **Student Metadata Banner**.
-- 🎓 **Academic Viva & Major Project Ready**: Fully documented for university project defense ([MAJOR_PROJECT_GUIDE.md](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/MAJOR_PROJECT_GUIDE.md), [ACADEMIC_GUIDE.md](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/ACADEMIC_GUIDE.md), and [Hybrid.md](file:///c:/Users/shrey/OneDrive/Desktop/NUMBERS%20TO%20EXCEL%20-%20Copy%20-%20Copy/Hybrid.md)).
+- 🎓 **Dual-Role Portal Architecture**:
+  - **Student Portal**: Mobile-first interface with camera capture (`capture="environment"`), AI marksheet extraction, interactive metadata editing (Name, PRN, Roll No, Branch, Division, Semester, Subject), and one-click database submission.
+  - **Faculty Master Dashboard**: Administrative management console to create classes/exams, monitor live submission statistics in real-time, search student rosters, and download consolidated Master Class Excel sheets.
+- ⚡ **Multi-Tier Edge-Cloud Hybrid Vision Engine**:
+  - Cloud layout detection (Google Gemini Flash) to isolate table structures with zero cell hallucination.
+  - Local custom PyTorch 3-Block CNN (trained on 70,000 MNIST samples with 99.55% test accuracy) for instantaneous on-device digit classification.
+- 🍃 **MongoDB Atlas Cloud Integration**:
+  - Centralized storage for registered academic batches and verified student answer sheets.
+  - **Smart Upsert Protection**: Prevents duplicate rows when a student re-submits a cleaner photo.
+  - **Natural Numeric Roll Number Sorting**: Automatically extracts numeric indices from composite roll formats (e.g., `44 / SE`, `SE-46`, `B-63`) to order rosters systematically ($44 \rightarrow 46 \rightarrow 63$).
+- 📊 **Consolidated Master Class Grade Sheet Compiler**:
+  - Aggregates all submissions in a classroom into a single unified Excel spreadsheet formatted with exam headers, maximum question marks, and student breakdown.
+- 📱 **100% Mobile-Friendly & Responsive**:
+  - One-tap mobile camera snap button, touch-friendly inputs, auto-zoom prevention for iOS, and animated horizontal scroll indicators for data tables.
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture & Workflow
 
 ```text
-[ Document Image / PDF ]
-           │
-           ▼
-[ Step 1: OpenCV Image Processor ] ────── (Grayscale Conversion, CLAHE, Deskew, Denoise)
-           │
-           ▼
-[ Step 2: Gemini Vision AI ] ──────────── (Grid Layout Parsing & Table Matrix Separation)
-           │
-           ▼
-[ Step 3: Custom PyTorch CNN ] ────────── (Digit Classification & TTA Majority Voting)
-           │
-           ├──────────────────────────────┐
-           ▼                              ▼
-[ Section & Matrix Builder ]    [ Student Metadata & Sum Verifier ]
-           │                              │
-           └──────────────┬───────────────┘
-                          ▼
-[ Interactive UI / Metadata Banner / Excel & CSV Exporters ]
+[ Mobile Camera / Image / PDF ]
+              │
+              ▼
+[ OpenCV Image Preprocessor ] ─── (Grayscale, CLAHE, Deskew, Denoise)
+              │
+              ▼
+[ Gemini Multimodal Vision AI ] ── (Isolates Mark Table & Header Metadata)
+              │
+              ▼
+[ Custom PyTorch CNN (99.55%) ] ── (Digit Recognition & Sum Verification)
+              │
+              ▼
+[ Interactive Web UI ] ────────── (Student Review, Live Editing, Instant Correction)
+              │
+              ▼
+[ MongoDB Atlas Database ] ────── (Smart Upsert & Natural Numeric Roll Sorting)
+              │
+              ▼
+[ Master Excel & CSV Compiler ] ── (Consolidated Multi-Student Class Workbook)
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Getting Started
 
-### 1. Prerequisites & Installation
-
-Clone the repository and install dependencies:
+### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/SHREYASPATIL2005/NUM-TO-EXCEL-PART-2.git
-cd NUM-TO-EXCEL-PART-2
+git clone https://github.com/patil2303/Final-_Year_Project-.git
+cd Final-_Year_Project-
+```
 
+### 2. Install Dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### 2. Run the Application
+### 3. Configure Environment Variables
+
+Create a `.env` file in the root directory (or copy from `.env.example`):
+
+```ini
+GEMINI_API_KEY=your_gemini_api_key_here
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.dbplhay.mongodb.net/exam_grading_portal?retryWrites=true&w=majority&appName=Cluster0
+```
+
+### 4. Run the Application
 
 ```bash
 python run.py
 ```
 
-The application server will start at `http://127.0.0.1:8000` and automatically open your default web browser.
+The application server will start at `http://127.0.0.1:8000`.
 
 ---
 
@@ -77,50 +90,33 @@ The application server will start at `http://127.0.0.1:8000` and automatically o
 ```text
 NUM-TO-EXCEL-PART-2/
 ├── backend/
-│   ├── app.py                 # FastAPI Web Server & Endpoint Handlers
-│   ├── gemini_vision_engine.py# Gemini Layout & Grid Separation Engine
-│   ├── mnist_classifier.py    # PyTorch CNN Model Architecture & Classifier
-│   ├── ocr_engine.py          # Two-Tier OCR Recognition Engine
-│   ├── section_detector.py    # Document Structure & Matrix Segmentation
-│   ├── data_formatter.py      # Styled Excel & CSV Exporters
-│   ├── utils.py               # Image Preprocessing & Format Utilities
-│   ├── services/              # Major Project Domain Services
-│   │   ├── header_extraction_service.py # Student Metadata & Fuzzy Levenshtein Matcher
+│   ├── app.py                         # FastAPI Web Server & REST Endpoints
+│   ├── database/
+│   │   └── mongo.py                   # MongoDB Atlas Client, Collections & Indexes
+│   ├── services/
+│   │   ├── submission_service.py      # Classroom Management, Upsert & Master Excel Compiler
+│   │   ├── header_extraction_service.py # Fuzzy Levenshtein & Metadata Extraction
 │   │   ├── marks_table_extraction_service.py # Ink Density & Total Score Verifier
-│   │   └── preprocessing_service.py # Multi-Thresholding Variant Processor
-│   └── models/
-│       └── mnist_cnn.pt       # Pre-trained CNN Model Weights (99.55% Acc)
+│   │   └── preprocessing_service.py   # Multi-Threshold Image Processor
+│   ├── gemini_vision_engine.py        # Gemini Multimodal Vision Pipeline
+│   ├── mnist_classifier.py            # PyTorch 3-Block CNN (99.55% Acc)
+│   ├── section_detector.py            # Table Structure & Matrix Segmentation
+│   └── data_formatter.py              # Openpyxl Excel & CSV Exporter
 ├── static/
-│   ├── index.html             # Web Application HTML Interface with Metadata Banner
-│   ├── css/style.css          # Modern UI Design & Glassmorphism Styling
+│   ├── index.html                     # Dual Portal HTML (Student & Faculty Dashboard)
+│   ├── css/style.css                  # Responsive Glassmorphism & Mobile Touch Styles
 │   └── js/
-│       ├── app.js             # Client UI Event & Upload Controller
-│       └── spreadsheet_editor.js # Editable Grid Controller
-├── sample_images/             # Demonstration & Sample Tables
-├── tests/                     # Automated Integration & Engine Tests
-├── Hybrid.md                  # Detailed Hybrid Engine Architecture Guide
-├── MAJOR_PROJECT_GUIDE.md     # Comprehensive Final Year Major Project Guide
-├── ACADEMIC_GUIDE.md          # Viva Presentation & Examination Defense Guide
-├── API.md                     # Vision API Key & Purpose Documentation
-├── WORKFLOW.md                # End-to-End System Workflow
+│       ├── app.js                     # Dual Portal Controller & MongoDB Synced Client
+│       └── spreadsheet_editor.js      # In-Browser Grid Controller
+├── sample_images/                     # Test Marksheets & Document Photos
+├── requirements.txt                   # Python Dependencies
+├── .env.example                       # Environment Configuration Template
 ├── README.md
-└── run.py                     # Main Server Launcher Script
+└── run.py                             # Main Server Launcher Script
 ```
-
----
-
-## 📊 Model Performance
-
-| Metric | Score |
-| :--- | :--- |
-| **Test Accuracy** | **`99.55%`** |
-| **Precision** | **`0.9955`** |
-| **Recall** | **`0.9955`** |
-| **F1-Score** | **`0.9955`** |
-| **Local Inference Time** | `< 2 ms` per cell crop |
 
 ---
 
 ## 📜 License
 
-MIT License. Free for academic, personal, and commercial use.
+MIT License. Free for academic, personal, and educational use.

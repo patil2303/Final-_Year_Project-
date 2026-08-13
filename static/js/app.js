@@ -1,7 +1,7 @@
 /**
- * Photo & PDF to Excel Converter App.
- * Handles file upload, interactive page crop preview, auto/manual crop,
- * OCR extraction, and spreadsheet grid editor.
+ * Academic Exam Marksheet & Grade Portal App.
+ * Handles Dual Portal (Student Upload & Faculty Dashboard),
+ * MongoDB Classroom Management, AI Number Extraction, and Master Grade Sheet Export.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,16 +11,28 @@ document.addEventListener('DOMContentLoaded', () => {
         'tableBody'
     );
 
-    // Current File State
+    // Current File & State
     let currentUploadedData = null;
     let originalImgWidth = 1204;
     let originalImgHeight = 1600;
-    let currentCropRect = null; // { x, y, width, height } in original image pixels
+    let currentCropRect = null;
     let isAutoCropped = false;
+    let activeClassroomsList = [];
+    let currentRosterData = [];
 
-    // Elements
+    // Navigation Tabs
+    const tabStudentPortal = document.getElementById('tabStudentPortal');
+    const tabFacultyPortal = document.getElementById('tabFacultyPortal');
+    const studentPortalView = document.getElementById('studentPortalView');
+    const facultyPortalView = document.getElementById('facultyPortalView');
+
+    // Student View Elements
+    const studentClassroomSelect = document.getElementById('studentClassroomSelect');
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
+    const cameraInput = document.getElementById('cameraInput');
+    const btnSnapCamera = document.getElementById('btnSnapCamera');
+    const btnChooseFile = document.getElementById('btnChooseFile');
     const filePreviewBar = document.getElementById('filePreviewBar');
     const lblFileName = document.getElementById('lblFileName');
     const lblFileMeta = document.getElementById('lblFileMeta');
@@ -31,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnManualCrop = document.getElementById('btnManualCrop');
     const btnClearCrop = document.getElementById('btnClearCrop');
 
-    const pageCropPreviewCard = document.getElementById('pageCropPreviewCard');
+    const previewCard = document.getElementById('previewCard');
     const cropBadge = document.getElementById('cropBadge');
     const cropStage = document.getElementById('cropStage');
     const previewImage = document.getElementById('previewImage');
@@ -40,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnConvert = document.getElementById('btnConvert');
     const resultCard = document.getElementById('resultCard');
 
+    const btnSubmitToDb = document.getElementById('btnSubmitToDb');
     const btnExportExcel = document.getElementById('btnExportExcel');
     const btnExportCsv = document.getElementById('btnExportCsv');
 
@@ -47,12 +60,165 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAddCol = document.getElementById('btnAddCol');
     const btnClearGrid = document.getElementById('btnClearGrid');
 
+    // Faculty View Elements
+    const facultyClassroomSelect = document.getElementById('facultyClassroomSelect');
+    const btnOpenCreateClassModal = document.getElementById('btnOpenCreateClassModal');
+    const btnRefreshFacultyRoster = document.getElementById('btnRefreshFacultyRoster');
+    const btnFacultyExportExcel = document.getElementById('btnFacultyExportExcel');
+    const btnFacultyExportCsv = document.getElementById('btnFacultyExportCsv');
+
+    const statTotalSubmissions = document.getElementById('statTotalSubmissions');
+    const statClassAverage = document.getElementById('statClassAverage');
+    const statHighestScore = document.getElementById('statHighestScore');
+    const statTopStudent = document.getElementById('statTopStudent');
+    const statLatestTime = document.getElementById('statLatestTime');
+    const statLatestStudent = document.getElementById('statLatestStudent');
+
+    const facultyRosterSearch = document.getElementById('facultyRosterSearch');
+    const facultyRosterTableBody = document.getElementById('facultyRosterTableBody');
+    const rosterEmptyState = document.getElementById('rosterEmptyState');
+
+    // Modal & Toast Elements
+    const createClassModal = document.getElementById('createClassModal');
+    const btnCloseCreateClassModal = document.getElementById('btnCloseCreateClassModal');
+    const btnCancelCreateClass = document.getElementById('btnCancelCreateClass');
+    const createClassForm = document.getElementById('createClassForm');
+    const toastNotification = document.getElementById('toastNotification');
+    const toastTitle = document.getElementById('toastTitle');
+    const toastMessage = document.getElementById('toastMessage');
+
     const loadingOverlay = document.getElementById('loadingOverlay');
     const loadingTitle = document.getElementById('loadingTitle');
     const loadingMessage = document.getElementById('loadingMessage');
 
     // ------------------------------------------------------------------
-    // 1. File Upload & Setup
+    // 1. Dual Portal Mode Switcher
+    // ------------------------------------------------------------------
+    function switchPortal(portal) {
+        if (portal === 'student') {
+            tabStudentPortal.classList.add('active');
+            tabFacultyPortal.classList.remove('active');
+            studentPortalView.style.display = 'block';
+            facultyPortalView.style.display = 'none';
+        } else {
+            tabFacultyPortal.classList.add('active');
+            tabStudentPortal.classList.remove('active');
+            studentPortalView.style.display = 'none';
+            facultyPortalView.style.display = 'block';
+            loadFacultyRoster();
+        }
+    }
+
+    tabStudentPortal.addEventListener('click', () => switchPortal('student'));
+    tabFacultyPortal.addEventListener('click', () => switchPortal('faculty'));
+
+    // ------------------------------------------------------------------
+    // 2. Classroom Management (MongoDB Synced)
+    // ------------------------------------------------------------------
+    async function loadClassrooms(selectedIdToSet = null) {
+        try {
+            const res = await fetch('/api/classrooms');
+            const data = await res.json();
+
+            if (data.status === 'success' && data.classrooms) {
+                activeClassroomsList = data.classrooms;
+            } else {
+                activeClassroomsList = [];
+            }
+
+            populateClassroomDropdowns(selectedIdToSet);
+        } catch (err) {
+            console.error('Failed to load classrooms from MongoDB:', err);
+        }
+    }
+
+    function populateClassroomDropdowns(selectedId = null) {
+        if (!activeClassroomsList || activeClassroomsList.length === 0) {
+            const studentEmptyOpt = '<option value="">-- No Active Classes (Please wait for faculty) --</option>';
+            const facultyEmptyOpt = '<option value="">-- No Classes Created Yet (Click "+ Create New Class / Exam" above) --</option>';
+            if (studentClassroomSelect) studentClassroomSelect.innerHTML = studentEmptyOpt;
+            if (facultyClassroomSelect) facultyClassroomSelect.innerHTML = facultyEmptyOpt;
+            return;
+        }
+
+        const studentOpts = [];
+        const facultyOpts = [];
+
+        activeClassroomsList.forEach(cls => {
+            const label = `${cls.year} ${cls.branch} (Div ${cls.division}) • ${cls.subject} (Sem ${cls.semester}) • ${cls.exam_name || 'IA-1'}`;
+            studentOpts.push(`<option value="${cls.classroom_id}">${label}</option>`);
+            facultyOpts.push(`<option value="${cls.classroom_id}">${label}</option>`);
+        });
+
+        if (studentClassroomSelect) studentClassroomSelect.innerHTML = studentOpts.join('');
+        if (facultyClassroomSelect) facultyClassroomSelect.innerHTML = facultyOpts.join('');
+
+        if (selectedId) {
+            if (studentClassroomSelect) studentClassroomSelect.value = selectedId;
+            if (facultyClassroomSelect) facultyClassroomSelect.value = selectedId;
+        }
+    }
+
+    // Modal Open/Close Controls (Faculty Only)
+    function openCreateClassModal() {
+        createClassModal.style.display = 'flex';
+    }
+
+    function closeCreateClassModal() {
+        createClassModal.style.display = 'none';
+        createClassForm.reset();
+    }
+
+    if (btnOpenCreateClassModal) btnOpenCreateClassModal.addEventListener('click', openCreateClassModal);
+    if (btnCloseCreateClassModal) btnCloseCreateClassModal.addEventListener('click', closeCreateClassModal);
+    if (btnCancelCreateClass) btnCancelCreateClass.addEventListener('click', closeCreateClassModal);
+
+    createClassForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const year = document.getElementById('newClassYear').value.trim();
+        const branch = document.getElementById('newClassBranch').value.trim();
+        const division = document.getElementById('newClassDivision').value.trim();
+        const semester = document.getElementById('newClassSemester').value.trim();
+        const subject = document.getElementById('newClassSubject').value.trim();
+        const examName = document.getElementById('newClassExam').value.trim();
+
+        showLoading('Registering Classroom...', 'Saving new batch to MongoDB Atlas...');
+
+        try {
+            const res = await fetch('/api/classrooms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    year: year,
+                    branch: branch,
+                    division: division,
+                    semester: semester,
+                    subject: subject,
+                    exam_name: examName
+                })
+            });
+
+            const data = await res.json();
+            hideLoading();
+
+            if (data.status === 'success') {
+                closeCreateClassModal();
+                showToast('Classroom Created!', `${year} ${branch} (${subject}) registered in MongoDB.`);
+                await loadClassrooms(data.classroom.classroom_id);
+                if (facultyPortalView.style.display !== 'none') {
+                    loadFacultyRoster();
+                }
+            } else {
+                alert(`Error creating classroom: ${data.detail}`);
+            }
+        } catch (err) {
+            hideLoading();
+            alert(`Failed to create classroom: ${err.message}`);
+        }
+    });
+
+    // ------------------------------------------------------------------
+    // 3. File Upload & Setup (Mobile Camera & Desktop)
     // ------------------------------------------------------------------
     async function uploadFile(file) {
         if (!file) return;
@@ -80,27 +246,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 dropZone.style.display = 'none';
                 filePreviewBar.style.display = 'flex';
                 cropControlStrip.style.display = 'flex';
-                pageCropPreviewCard.style.display = 'block';
+                if (previewCard) previewCard.style.display = 'block';
 
                 lblFileName.innerText = data.filename;
                 const fileExt = data.filename.split('.').pop().toUpperCase();
                 lblFileMeta.innerText = `${fileExt} File • ${data.total_pages} Page(s) • (${originalImgWidth}×${originalImgHeight}px)`;
 
-                const setupImageAndCrop = () => {
-                    initCropOverlay();
-                    triggerAutoCrop();
-                };
-
-                previewImage.onload = () => {
-                    setTimeout(setupImageAndCrop, 100);
-                };
-
-                previewImage.src = data.image_b64;
                 btnConvert.disabled = false;
-
-                if (previewImage.complete && previewImage.naturalWidth > 0) {
-                    setTimeout(setupImageAndCrop, 100);
-                }
             } else {
                 alert(`Upload Error: ${data.detail}`);
             }
@@ -110,18 +262,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    if (btnSnapCamera && cameraInput) {
+        btnSnapCamera.addEventListener('click', () => cameraInput.click());
+    }
+
+    if (btnChooseFile && fileInput) {
+        btnChooseFile.addEventListener('click', () => fileInput.click());
+    }
+
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
             uploadFile(e.target.files[0]);
         }
     });
 
+    if (cameraInput) {
+        cameraInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                uploadFile(e.target.files[0]);
+            }
+        });
+    }
+
     btnChangeFile.addEventListener('click', () => {
         currentUploadedData = null;
         fileInput.value = '';
+        if (cameraInput) cameraInput.value = '';
         filePreviewBar.style.display = 'none';
         cropControlStrip.style.display = 'none';
-        pageCropPreviewCard.style.display = 'none';
+        if (previewCard) previewCard.style.display = 'none';
         dropZone.style.display = 'block';
         btnConvert.disabled = true;
         resultCard.style.display = 'none';
@@ -148,335 +317,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ------------------------------------------------------------------
-    // 2. Interactive Crop Overlay Engine
+    // 4. Extraction & AI Recognition Action
     // ------------------------------------------------------------------
-    let stageRect = { width: 1, height: 1 };
-    let cropPos = { left: 0, top: 0, width: 0, height: 0 }; // in CSS pixels relative to stage
-    let isDragging = false;
-    let isResizing = false;
-    let currentHandle = null;
-    let startMousePos = { x: 0, y: 0 };
-    let startCropPos = { left: 0, top: 0, width: 0, height: 0 };
+    let lastExtractedMetadata = null;
 
-    function initCropOverlay() {
-        stageRect = cropStage.getBoundingClientRect();
-        
-        // Default crop box to middle 75% region or full image
-        const defaultW = stageRect.width * 0.85;
-        const defaultH = stageRect.height * 0.25;
-        const defaultL = (stageRect.width - defaultW) / 2;
-        const defaultT = (stageRect.height - defaultH) / 3;
-
-        setCropPosPx(defaultL, defaultT, defaultW, defaultH);
-    }
-
-    function setCropPosPx(left, top, width, height) {
-        stageRect = cropStage.getBoundingClientRect();
-        if (stageRect.width === 0 || stageRect.height === 0) return;
-
-        // Constrain bounds within stage
-        left = Math.max(0, Math.min(left, stageRect.width - 20));
-        top = Math.max(0, Math.min(top, stageRect.height - 20));
-        width = Math.max(20, Math.min(width, stageRect.width - left));
-        height = Math.max(20, Math.min(height, stageRect.height - top));
-
-        cropPos = { left, top, width, height };
-
-        cropBox.style.left = `${left}px`;
-        cropBox.style.top = `${top}px`;
-        cropBox.style.width = `${width}px`;
-        cropBox.style.height = `${height}px`;
-
-        // Calculate mapped pixel coordinates on original image
-        const scaleX = originalImgWidth / stageRect.width;
-        const scaleY = originalImgHeight / stageRect.height;
-
-        const origX = Math.round(left * scaleX);
-        const origY = Math.round(top * scaleY);
-        const origW = Math.round(width * scaleX);
-        const origH = Math.round(height * scaleY);
-
-        currentCropRect = { x: origX, y: origY, width: origW, height: origH };
-
-        const modePrefix = isAutoCropped ? 'Auto crop:' : 'Manual crop:';
-        cropBadge.innerText = `${modePrefix} ${origW} × ${origH}`;
-    }
-
-    // Drag & Resize Event Listeners
-    cropBox.addEventListener('mousedown', (e) => {
-        if (e.target.classList.contains('crop-handle')) {
-            isResizing = true;
-            currentHandle = e.target.getAttribute('data-handle');
-        } else {
-            isDragging = true;
-        }
-
-        isAutoCropped = false;
-        setActiveCropButton(btnManualCrop);
-
-        startMousePos = { x: e.clientX, y: e.clientY };
-        startCropPos = { ...cropPos };
-        e.stopPropagation();
-        e.preventDefault();
-    });
-
-    document.addEventListener('mousemove', (e) => {
-        if (!isDragging && !isResizing) return;
-
-        const dx = e.clientX - startMousePos.x;
-        const dy = e.clientY - startMousePos.y;
-
-        if (isDragging) {
-            setCropPosPx(
-                startCropPos.left + dx,
-                startCropPos.top + dy,
-                startCropPos.width,
-                startCropPos.height
-            );
-        } else if (isResizing && currentHandle) {
-            let nL = startCropPos.left;
-            let nT = startCropPos.top;
-            let nW = startCropPos.width;
-            let nH = startCropPos.height;
-
-            if (currentHandle.includes('e')) nW = startCropPos.width + dx;
-            if (currentHandle.includes('s')) nH = startCropPos.height + dy;
-            if (currentHandle.includes('w')) {
-                nW = startCropPos.width - dx;
-                nL = startCropPos.left + dx;
-            }
-            if (currentHandle.includes('n')) {
-                nH = startCropPos.height - dy;
-                nT = startCropPos.top + dy;
-            }
-
-            setCropPosPx(nL, nT, nW, nH);
-        }
-    });
-
-    document.addEventListener('mouseup', () => {
-        isDragging = false;
-        isResizing = false;
-        currentHandle = null;
-    });
-
-    // Touch Support for mobile / touch devices
-    cropBox.addEventListener('touchstart', (e) => {
-        if (e.touches.length !== 1) return;
-        const touch = e.touches[0];
-        if (e.target.classList.contains('crop-handle')) {
-            isResizing = true;
-            currentHandle = e.target.getAttribute('data-handle');
-        } else {
-            isDragging = true;
-        }
-
-        isAutoCropped = false;
-        setActiveCropButton(btnManualCrop);
-
-        startMousePos = { x: touch.clientX, y: touch.clientY };
-        startCropPos = { ...cropPos };
-        e.stopPropagation();
-    });
-
-    document.addEventListener('touchmove', (e) => {
-        if (!isDragging && !isResizing) return;
-        if (e.touches.length !== 1) return;
-        const touch = e.touches[0];
-
-        const dx = touch.clientX - startMousePos.x;
-        const dy = touch.clientY - startMousePos.y;
-
-        if (isDragging) {
-            setCropPosPx(
-                startCropPos.left + dx,
-                startCropPos.top + dy,
-                startCropPos.width,
-                startCropPos.height
-            );
-        } else if (isResizing && currentHandle) {
-            let nL = startCropPos.left;
-            let nT = startCropPos.top;
-            let nW = startCropPos.width;
-            let nH = startCropPos.height;
-
-            if (currentHandle.includes('e')) nW = startCropPos.width + dx;
-            if (currentHandle.includes('s')) nH = startCropPos.height + dy;
-            if (currentHandle.includes('w')) {
-                nW = startCropPos.width - dx;
-                nL = startCropPos.left + dx;
-            }
-            if (currentHandle.includes('n')) {
-                nH = startCropPos.height - dy;
-                nT = startCropPos.top + dy;
-            }
-
-            setCropPosPx(nL, nT, nW, nH);
-        }
-    });
-
-    document.addEventListener('touchend', () => {
-        isDragging = false;
-        isResizing = false;
-        currentHandle = null;
-    });
-
-    window.addEventListener('resize', () => {
-        if (currentUploadedData && currentCropRect) {
-            stageRect = cropStage.getBoundingClientRect();
-            const scaleX = stageRect.width / originalImgWidth;
-            const scaleY = stageRect.height / originalImgHeight;
-            setCropPosPx(
-                currentCropRect.x * scaleX,
-                currentCropRect.y * scaleY,
-                currentCropRect.width * scaleX,
-                currentCropRect.height * scaleY
-            );
-        }
-    });
-
-    // ------------------------------------------------------------------
-    // 3. Crop Controls (Auto Crop, Manual Crop, Clear Crop)
-    // ------------------------------------------------------------------
-    function setActiveCropButton(activeBtn) {
-        [btnAutoCrop, btnManualCrop, btnClearCrop].forEach(btn => btn.classList.remove('active'));
-        if (activeBtn) activeBtn.classList.add('active');
-    }
-
-    async function triggerAutoCrop() {
-        if (!currentUploadedData || !currentUploadedData.image_b64) return;
-
-        setActiveCropButton(btnAutoCrop);
-
-        try {
-            const res = await fetch('/api/autocrop', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image_b64: currentUploadedData.image_b64 })
-            });
-
-            const data = await res.json();
-            if (data.status === 'success' && data.crop) {
-                isAutoCropped = true;
-                const crop = data.crop;
-                stageRect = cropStage.getBoundingClientRect();
-                const scaleX = stageRect.width / originalImgWidth;
-                const scaleY = stageRect.height / originalImgHeight;
-
-                setCropPosPx(
-                    crop.x * scaleX,
-                    crop.y * scaleY,
-                    crop.width * scaleX,
-                    crop.height * scaleY
-                );
-            }
-        } catch (err) {
-            console.warn("Auto crop request failed, using manual crop box.", err);
-        }
-    }
-
-    btnAutoCrop.addEventListener('click', () => {
-        triggerAutoCrop();
-    });
-
-    btnManualCrop.addEventListener('click', () => {
-        isAutoCropped = false;
-        setActiveCropButton(btnManualCrop);
-        if (currentCropRect) {
-            cropBadge.innerText = `Manual crop: ${currentCropRect.width} × ${currentCropRect.height}`;
-        }
-    });
-
-    btnClearCrop.addEventListener('click', () => {
-        isAutoCropped = false;
-        setActiveCropButton(btnClearCrop);
-        stageRect = cropStage.getBoundingClientRect();
-        setCropPosPx(0, 0, stageRect.width, stageRect.height);
-        cropBadge.innerText = `Full page: ${originalImgWidth} × ${originalImgHeight}`;
-    });
-
-    // Engine Radio Selection Interactivity
-    const engineRadioCards = document.querySelectorAll('.engine-radio-card');
-    engineRadioCards.forEach(card => {
-        card.addEventListener('click', () => {
-            engineRadioCards.forEach(c => c.classList.remove('active'));
-            card.classList.add('active');
-            const radio = card.querySelector('input[type="radio"]');
-            if (radio) radio.checked = true;
-        });
-    });
-
-    function getSelectedEngine() {
-        const checkedRadio = document.querySelector('input[name="engineSelect"]:checked');
-        return checkedRadio ? checkedRadio.value : 'local';
-    }
-
-    function renderBenchmarkMetrics(bench) {
-        const benchmarkCard = document.getElementById('benchmarkCard');
-        const tableBody = document.getElementById('benchmarkTableBody');
-        if (!bench || !benchmarkCard || !tableBody) return;
-
-        const loc = bench.local_engine || {};
-        const gem = bench.gemini_engine || {};
-
-        tableBody.innerHTML = `
-            <tr>
-                <td><strong>Model Architecture</strong></td>
-                <td>${loc.name || 'PyTorch CNN (99.55% Acc)'}</td>
-                <td>${gem.name || 'Gemini Multimodal Vision API'}</td>
-            </tr>
-            <tr>
-                <td><strong>Inference Latency</strong></td>
-                <td><strong style="color:#059669;">${loc.latency_ms || 0} ms</strong> (Fast local CPU)</td>
-                <td><strong style="color:#0284C7;">${gem.latency_ms || 0} ms</strong> (Cloud Network)</td>
-            </tr>
-            <tr>
-                <td><strong>Offline Capability</strong></td>
-                <td><span style="color:#059669; font-weight:bold;">✔ 100% Offline Capable</span></td>
-                <td><span style="color:#EF4444; font-weight:bold;">✖ Requires Internet API</span></td>
-            </tr>
-            <tr>
-                <td><strong>Data Privacy & Security</strong></td>
-                <td>${loc.privacy || '100% On-Device'}</td>
-                <td>${gem.privacy || 'Sent to Cloud API'}</td>
-            </tr>
-            <tr>
-                <td><strong>Operational Cost</strong></td>
-                <td><span style="color:#059669; font-weight:bold;">Free ($0.00)</span></td>
-                <td>${gem.cost || 'API Quota/Billing'}</td>
-            </tr>
-        `;
-
-        benchmarkCard.style.display = 'block';
-    }
-
-    // ------------------------------------------------------------------
-    // 4. Extraction & Conversion Action
-    // ------------------------------------------------------------------
     btnConvert.addEventListener('click', async () => {
         if (!currentUploadedData) {
             alert('Please select a file first.');
             return;
         }
 
-        const selectedEngine = getSelectedEngine();
-
         showLoading(
-            'Extracting Numbers & Tables',
-            selectedEngine === 'comparative' 
-                ? 'Running side-by-side benchmark: PyTorch Local CNN vs Gemini Cloud AI...'
-                : `Executing extraction using [${selectedEngine.toUpperCase()}] Engine...`
+            'Extracting Marksheet & Table Grid',
+            'Running Gemini Vision + PyTorch CNN Evaluator with zero cell hallucination...'
         );
 
         const payload = {
             file_b64_list: currentUploadedData.pages_b64 || [currentUploadedData.image_b64],
-            engine: selectedEngine
+            engine: 'hybrid'
         };
-
-        // Attach ROI crop coordinates if active
-        if (currentCropRect && currentCropRect.width > 20 && currentCropRect.height > 20) {
-            payload.roi = currentCropRect;
-        }
 
         try {
             const res = await fetch('/api/extract', {
@@ -492,9 +351,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const sections = data.sections || [];
                 spreadsheetEditor.setSections(sections);
 
+                // Update Student & Document Metadata Banner dynamically (editable inputs)
+                lastExtractedMetadata = data.metadata || (sections.length > 0 ? sections[0].metadata : null);
+                renderStudentMetadata(lastExtractedMetadata);
+
                 const benchmarkCard = document.getElementById('benchmarkCard');
-                if (data.comparative_benchmark) {
-                    renderBenchmarkMetrics(data.comparative_benchmark);
+                if (data.comparative_benchmark && benchmarkCard) {
+                    benchmarkCard.style.display = 'block';
                 } else if (benchmarkCard) {
                     benchmarkCard.style.display = 'none';
                 }
@@ -511,31 +374,151 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    function renderStudentMetadata(meta) {
+        const metaStudentName = document.getElementById('metaStudentName');
+        const metaPRN = document.getElementById('metaPRN');
+        const metaRollNo = document.getElementById('metaRollNo');
+        const metaBranch = document.getElementById('metaBranch');
+        const metaDivision = document.getElementById('metaDivision');
+        const metaSemester = document.getElementById('metaSemester');
+        const metaSubject = document.getElementById('metaSubject');
+
+        if (!meta) {
+            if (metaStudentName) metaStudentName.value = '';
+            if (metaPRN) metaPRN.value = '';
+            if (metaRollNo) metaRollNo.value = '';
+            if (metaBranch) metaBranch.value = '';
+            if (metaDivision) metaDivision.value = '';
+            if (metaSemester) metaSemester.value = '';
+            if (metaSubject) metaSubject.value = '';
+            return;
+        }
+
+        const name = meta.student_name || meta.name || '';
+        const prn = meta.prn || '';
+        const rollNo = meta.roll_no || meta.roll_number || meta.rollno || '';
+        const branch = meta.branch || '';
+        const div = meta.division || '';
+        const sem = meta.semester || '';
+        const subj = meta.subject || '';
+
+        if (metaStudentName) metaStudentName.value = name ? name.toUpperCase() : '';
+        if (metaPRN) metaPRN.value = prn ? prn : '';
+        if (metaRollNo) metaRollNo.value = rollNo ? rollNo.toUpperCase() : '';
+        if (metaBranch) metaBranch.value = branch ? branch : '';
+        if (metaDivision) metaDivision.value = div ? div : '';
+        if (metaSemester) metaSemester.value = sem ? sem : '';
+        if (metaSubject) metaSubject.value = subj ? subj : '';
+    }
+
+    function getEditedMetadata() {
+        const metaStudentName = document.getElementById('metaStudentName');
+        const metaPRN = document.getElementById('metaPRN');
+        const metaRollNo = document.getElementById('metaRollNo');
+        const metaBranch = document.getElementById('metaBranch');
+        const metaDivision = document.getElementById('metaDivision');
+        const metaSemester = document.getElementById('metaSemester');
+        const metaSubject = document.getElementById('metaSubject');
+
+        return {
+            student_name: metaStudentName ? metaStudentName.value.trim() : '',
+            prn: metaPRN ? metaPRN.value.trim() : '',
+            roll_no: metaRollNo ? metaRollNo.value.trim() : '',
+            branch: metaBranch ? metaBranch.value.trim() : '',
+            division: metaDivision ? metaDivision.value.trim() : '',
+            semester: metaSemester ? metaSemester.value.trim() : '',
+            subject: metaSubject ? metaSubject.value.trim() : ''
+        };
+    }
+
+    function extractQuestionMarksFromGrid() {
+        const sections = spreadsheetEditor.getSections();
+        if (!sections || sections.length === 0) return {};
+
+        const sec = sections[0];
+        const headers = sec.headers || [];
+        const rows = sec.rows || [];
+
+        const marksMap = {};
+        if (rows.length >= 2) {
+            // Row 1 is Mark Awarded row
+            const awardRow = rows[1];
+            headers.forEach((h, idx) => {
+                const normH = String(h).trim().toLowerCase();
+                if (normH.startsWith('1') || normH.startsWith('2') || normH.startsWith('3') || normH === 'total') {
+                    const cellVal = idx < awardRow.length ? (awardRow[idx].value || awardRow[idx].text || '') : '';
+                    marksMap[normH] = String(cellVal).trim();
+                }
+            });
+        }
+        return marksMap;
+    }
+
     // ------------------------------------------------------------------
-    // 5. Grid Editing Toolbar Controls
+    // 5. Student Submit to MongoDB Database
     // ------------------------------------------------------------------
-    btnAddRow.addEventListener('click', () => spreadsheetEditor.addRow());
-    btnAddCol.addEventListener('click', () => spreadsheetEditor.addColumn());
-    btnClearGrid.addEventListener('click', () => {
-        if (confirm('Clear current spreadsheet grid?')) {
-            spreadsheetEditor.clearGrid();
+    btnSubmitToDb.addEventListener('click', async () => {
+        const classroomId = studentClassroomSelect ? studentClassroomSelect.value : '';
+        
+        if (!classroomId) {
+            alert('No active classroom session selected. Please select a classroom created by your faculty before submitting.');
+            return;
+        }
+
+        const currentMeta = getEditedMetadata();
+        const questionMarks = extractQuestionMarksFromGrid();
+
+        if (!currentMeta.student_name && !currentMeta.prn && !currentMeta.roll_no) {
+            alert('Please verify student metadata (Name / Roll No / PRN) before submitting.');
+            return;
+        }
+
+        showLoading('Submitting to Classroom Database', 'Syncing marksheet with MongoDB Atlas...');
+
+        try {
+            const res = await fetch('/api/submissions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    classroom_id: classroomId,
+                    student_metadata: currentMeta,
+                    marks_data: questionMarks,
+                    raw_image_b64: currentUploadedData ? currentUploadedData.image_b64 : null
+                })
+            });
+
+            const data = await res.json();
+            hideLoading();
+
+            if (data.status === 'success') {
+                showToast(
+                    'Submitted Successfully! 🎉',
+                    `${currentMeta.student_name} (Roll: ${currentMeta.roll_no}) was stored in MongoDB Atlas.`
+                );
+            } else {
+                alert(`Submission error: ${data.detail}`);
+            }
+        } catch (err) {
+            hideLoading();
+            alert(`Failed to submit to database: ${err.message}`);
         }
     });
 
     // ------------------------------------------------------------------
-    // 6. Export Excel & CSV File Downloads
+    // 6. Individual Student Excel / CSV Exports
     // ------------------------------------------------------------------
     btnExportExcel.addEventListener('click', async () => {
         const sections = spreadsheetEditor.getSections();
         if (!sections || sections.length === 0) return;
 
         showLoading('Generating Excel File', 'Formatting worksheets & auto-fitting columns...');
+        const currentMeta = getEditedMetadata();
 
         try {
             const res = await fetch('/api/export/excel', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sections: sections })
+                body: JSON.stringify({ sections: sections, metadata: currentMeta })
             });
 
             if (res.ok) {
@@ -543,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'extracted_table_numbers.xlsx';
+                a.download = `marksheet_${currentMeta.roll_no || 'student'}.xlsx`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
@@ -563,12 +546,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!sections || sections.length === 0) return;
 
         showLoading('Generating CSV File', 'Creating clean CSV...');
+        const currentMeta = getEditedMetadata();
 
         try {
             const res = await fetch('/api/export/csv', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sections: sections })
+                body: JSON.stringify({ sections: sections, metadata: currentMeta })
             });
 
             if (res.ok) {
@@ -576,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'extracted_table_numbers.csv';
+                a.download = `marksheet_${currentMeta.roll_no || 'student'}.csv`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
@@ -591,6 +575,220 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // ------------------------------------------------------------------
+    // 7. Faculty Dashboard & Live Class Roster
+    // ------------------------------------------------------------------
+    async function loadFacultyRoster() {
+        const classroomId = facultyClassroomSelect ? facultyClassroomSelect.value : (activeClassroomsList[0]?.classroom_id || 'SE_IT_B_IV_CNND_IA1');
+        if (!classroomId) return;
+
+        try {
+            const res = await fetch(`/api/submissions/${classroomId}`);
+            const data = await res.json();
+
+            if (data.status === 'success') {
+                currentRosterData = data.submissions || [];
+                renderFacultyMetrics(currentRosterData);
+                renderFacultyRosterTable(currentRosterData);
+            }
+        } catch (err) {
+            console.error('Failed to fetch faculty roster from MongoDB:', err);
+        }
+    }
+
+    function renderFacultyMetrics(submissions) {
+        if (!submissions || submissions.length === 0) {
+            if (statTotalSubmissions) statTotalSubmissions.innerText = '0';
+            if (statClassAverage) statClassAverage.innerText = '0.0 / 20';
+            if (statHighestScore) statHighestScore.innerText = '0 / 20';
+            if (statTopStudent) statTopStudent.innerText = 'No submissions';
+            if (statLatestTime) statLatestTime.innerText = '-';
+            if (statLatestStudent) statLatestStudent.innerText = 'No submissions';
+            return;
+        }
+
+        const count = submissions.length;
+        if (statTotalSubmissions) statTotalSubmissions.innerText = String(count);
+
+        let totalSum = 0;
+        let validScoresCount = 0;
+        let highest = -1;
+        let topStudentName = '';
+
+        submissions.forEach(s => {
+            const totStr = String(s.total_marks || '').replace(/[^0-9.]/g, '');
+            const totNum = parseFloat(totStr);
+            if (!isNaN(totNum)) {
+                totalSum += totNum;
+                validScoresCount++;
+                if (totNum > highest) {
+                    highest = totNum;
+                    topStudentName = s.student_name || s.roll_no;
+                }
+            }
+        });
+
+        const avg = validScoresCount > 0 ? (totalSum / validScoresCount).toFixed(1) : '0.0';
+        if (statClassAverage) statClassAverage.innerText = `${avg} / 20`;
+        if (statHighestScore) statHighestScore.innerText = highest >= 0 ? `${highest} / 20` : '0 / 20';
+        if (statTopStudent) statTopStudent.innerText = topStudentName || 'N/A';
+
+        // Latest submission info
+        const latest = submissions[submissions.length - 1];
+        if (statLatestTime) statLatestTime.innerText = 'Just now (Synced)';
+        if (statLatestStudent) statLatestStudent.innerText = latest ? `${latest.student_name} (${latest.roll_no})` : '-';
+    }
+
+    function renderFacultyRosterTable(submissions) {
+        if (!facultyRosterTableBody) return;
+
+        if (!submissions || submissions.length === 0) {
+            facultyRosterTableBody.innerHTML = '';
+            if (rosterEmptyState) rosterEmptyState.style.display = 'block';
+            return;
+        }
+
+        if (rosterEmptyState) rosterEmptyState.style.display = 'none';
+
+        const rowsHtml = submissions.map((s, idx) => {
+            const marks = s.marks_awarded || {};
+            return `
+                <tr>
+                    <td><strong>${idx + 1}</strong></td>
+                    <td><span style="font-weight:700; color:#1E40AF;">${s.roll_no || '-'}</span></td>
+                    <td><span style="font-family:var(--font-code); font-size:0.82rem;">${s.prn || '-'}</span></td>
+                    <td><strong>${s.student_name || '-'}</strong></td>
+                    <td>${marks['1a'] || ''}</td>
+                    <td>${marks['1b'] || ''}</td>
+                    <td>${marks['1c'] || ''}</td>
+                    <td>${marks['1d'] || ''}</td>
+                    <td>${marks['1e'] || ''}</td>
+                    <td>${marks['1f'] || ''}</td>
+                    <td>${marks['2a'] || ''}</td>
+                    <td>${marks['2b'] || ''}</td>
+                    <td>${marks['3a'] || ''}</td>
+                    <td>${marks['3b'] || ''}</td>
+                    <td class="total-col">${s.total_marks || ''}</td>
+                    <td><span class="roster-badge-status"><i class="fa-solid fa-check"></i> ${s.status || 'Verified'}</span></td>
+                </tr>
+            `;
+        }).join('');
+
+        facultyRosterTableBody.innerHTML = rowsHtml;
+    }
+
+    // Live search filter in faculty roster
+    if (facultyRosterSearch) {
+        facultyRosterSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            if (!query) {
+                renderFacultyRosterTable(currentRosterData);
+                return;
+            }
+
+            const filtered = currentRosterData.filter(s => {
+                const name = (s.student_name || '').toLowerCase();
+                const roll = (s.roll_no || '').toLowerCase();
+                const prn = (s.prn || '').toLowerCase();
+                return name.includes(query) || roll.includes(query) || prn.includes(query);
+            });
+
+            renderFacultyRosterTable(filtered);
+        });
+    }
+
+    if (facultyClassroomSelect) {
+        facultyClassroomSelect.addEventListener('change', () => loadFacultyRoster());
+    }
+
+    if (btnRefreshFacultyRoster) {
+        btnRefreshFacultyRoster.addEventListener('click', async () => {
+            showToast('Refreshing Roster...', 'Fetching latest submissions from MongoDB Atlas.');
+            await loadFacultyRoster();
+        });
+    }
+
+    // Master Class Excel Export
+    if (btnFacultyExportExcel) {
+        btnFacultyExportExcel.addEventListener('click', async () => {
+            const classroomId = facultyClassroomSelect ? facultyClassroomSelect.value : 'SE_IT_B_IV_CNND_IA1';
+            showLoading('Exporting Master Class Excel', 'Compiling all student grades into one Excel workbook...');
+
+            try {
+                const res = await fetch(`/api/export/master-excel/${classroomId}`);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `master_grade_sheet_${classroomId}.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    alert('Failed to export Master Excel sheet.');
+                }
+            } catch (err) {
+                alert(`Export error: ${err.message}`);
+            } finally {
+                hideLoading();
+            }
+        });
+    }
+
+    // Master Class CSV Export
+    if (btnFacultyExportCsv) {
+        btnFacultyExportCsv.addEventListener('click', async () => {
+            const classroomId = facultyClassroomSelect ? facultyClassroomSelect.value : 'SE_IT_B_IV_CNND_IA1';
+            showLoading('Exporting Master CSV', 'Generating clean CSV for all students...');
+
+            try {
+                const res = await fetch(`/api/export/master-csv/${classroomId}`);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `master_grade_sheet_${classroomId}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    alert('Failed to export Master CSV file.');
+                }
+            } catch (err) {
+                alert(`Export error: ${err.message}`);
+            } finally {
+                hideLoading();
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // 8. Grid Tools & Utilities
+    // ------------------------------------------------------------------
+    if (btnAddRow) btnAddRow.addEventListener('click', () => spreadsheetEditor.addRow());
+    if (btnAddCol) btnAddCol.addEventListener('click', () => spreadsheetEditor.addColumn());
+    if (btnClearGrid) {
+        btnClearGrid.addEventListener('click', () => {
+            if (confirm('Clear current spreadsheet grid?')) {
+                spreadsheetEditor.clearGrid();
+            }
+        });
+    }
+
+    function showToast(title, msg) {
+        if (!toastNotification) return;
+        toastTitle.innerText = title;
+        toastMessage.innerText = msg;
+        toastNotification.style.display = 'flex';
+        setTimeout(() => {
+            toastNotification.style.display = 'none';
+        }, 4000);
+    }
+
     function showLoading(title, msg) {
         loadingTitle.innerText = title;
         loadingMessage.innerText = msg;
@@ -600,4 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function hideLoading() {
         loadingOverlay.style.display = 'none';
     }
+
+    // Initial Load
+    loadClassrooms();
 });

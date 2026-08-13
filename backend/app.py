@@ -47,6 +47,12 @@ async def add_no_cache_headers(request, call_next):
 STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    css_dir = os.path.join(STATIC_DIR, "css")
+    if os.path.exists(css_dir):
+        app.mount("/css", StaticFiles(directory=css_dir), name="css")
+    js_dir = os.path.join(STATIC_DIR, "js")
+    if os.path.exists(js_dir):
+        app.mount("/js", StaticFiles(directory=js_dir), name="js")
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
@@ -80,6 +86,7 @@ class ExtractRequest(BaseModel):
 
 class ExportRequest(BaseModel):
     sections: List[Dict[str, Any]]
+    metadata: Optional[Dict[str, Any]] = None
 
 @app.post("/api/upload")
 async def upload_file_endpoint(file: UploadFile = File(...)):
@@ -251,26 +258,27 @@ def extract_sections(req: ExtractRequest):
                     all_ocr_tokens.extend(ocr_tokens)
 
             elif selected_engine == "hybrid":
-                # --- Hybrid Engine: Local Edge OCR with Cloud Refinement ---
-                t_start_local = time.time()
-                ocr_tokens = run_ocr_on_image(t_img)
-                local_sections = detect_sections_and_tables(ocr_tokens, t_img.shape)
-                local_total_ms += (time.time() - t_start_local) * 1000.0
-                all_ocr_tokens.extend(ocr_tokens)
-
+                # --- Hybrid Engine: Cloud Vision AI with Edge-First Fallback ---
                 t_start_gemini = time.time()
                 gemini_sections = None
                 try:
                     gemini_sections = extract_with_gemini_vision(t_img)
+                    # If ROI crop was too narrow, try full image
+                    if not gemini_sections and t_img is not processed:
+                        gemini_sections = extract_with_gemini_vision(processed)
                 except Exception as vision_err:
-                    logger.warning(f"[Extract Endpoint] Gemini Hybrid refinement skipped: {vision_err}")
+                    logger.warning(f"[Extract Endpoint] Gemini Hybrid vision skipped: {vision_err}")
                 gemini_total_ms += (time.time() - t_start_gemini) * 1000.0
 
-                # Use Gemini sections if available and richer, otherwise local
                 if gemini_sections and len(gemini_sections) > 0:
                     p_sections = gemini_sections
                 else:
-                    p_sections = local_sections
+                    # Fallback to 100% On-Device Engine: PyTorch CNN + OpenCV
+                    t_start_local = time.time()
+                    ocr_tokens = run_ocr_on_image(t_img)
+                    p_sections = detect_sections_and_tables(ocr_tokens, t_img.shape)
+                    local_total_ms += (time.time() - t_start_local) * 1000.0
+                    all_ocr_tokens.extend(ocr_tokens)
 
             elif selected_engine == "comparative":
                 # --- Comparative Benchmark Mode: Run both side-by-side & measure ---
@@ -325,12 +333,31 @@ def extract_sections(req: ExtractRequest):
                         s["title"] = f"Page {p_idx+1} - {s['title']}"
                     all_sections.append(s)
 
+        # Extract dynamic student & document header metadata from primary image
+        extracted_metadata = {}
+        # First check if sections already parsed rich metadata from Gemini
+        for sec in all_sections:
+            if sec.get("metadata") and any(sec["metadata"].values()):
+                extracted_metadata = dict(sec["metadata"])
+                break
+
+        if not extracted_metadata or not any(extracted_metadata.values()):
+            try:
+                extracted_metadata = get_header_service().extract_metadata_from_image(target_imgs[0])
+            except Exception as meta_err:
+                logger.warning(f"Metadata extraction encountered error: {meta_err}")
+
+        # Attach metadata to sections for export referencing
+        for sec in all_sections:
+            sec["metadata"] = extracted_metadata
+
         return {
             "status": "success",
             "engine_used": selected_engine,
             "total_tokens": len(all_ocr_tokens),
             "total_sections": len(all_sections),
             "sections": all_sections,
+            "metadata": extracted_metadata,
             "ocr_tokens": all_ocr_tokens,
             "latency_ms": {
                 "local": round(local_total_ms, 2),
@@ -348,9 +375,9 @@ def extract_sections(req: ExtractRequest):
 
 @app.post("/api/export/excel")
 def export_excel_endpoint(req: ExportRequest):
-    """Generates and downloads styled Excel (.xlsx) workbook."""
+    """Generates and downloads styled Excel (.xlsx) workbook with student metadata in single-row table."""
     try:
-        excel_bytes = export_to_excel_bytes(req.sections)
+        excel_bytes = export_to_excel_bytes(req.sections, req.metadata)
         headers = {
             'Content-Disposition': 'attachment; filename="extracted_numbers_tables.xlsx"'
         }
@@ -365,9 +392,9 @@ def export_excel_endpoint(req: ExportRequest):
 
 @app.post("/api/export/csv")
 def export_csv_endpoint(req: ExportRequest):
-    """Generates and downloads clean CSV (.csv) file."""
+    """Generates and downloads clean CSV (.csv) file with student metadata in single-row table."""
     try:
-        csv_str = export_to_csv_string(req.sections)
+        csv_str = export_to_csv_string(req.sections, req.metadata)
         headers = {
             'Content-Disposition': 'attachment; filename="extracted_numbers_tables.csv"'
         }
@@ -408,7 +435,7 @@ class AcademicHeaderRequest(BaseModel):
 def extract_header_metadata(req: AcademicHeaderRequest):
     """
     Major Project Endpoint: Extracts student metadata (PRN, Student Name, Branch,
-    Division, Semester, Subject) using Levenshtein fuzzy matching and regex validation.
+    Division, Semester, Subject) using Vision AI & OCR.
     """
     try:
         img = base64_to_cv2(req.image_b64)
@@ -416,22 +443,11 @@ def extract_header_metadata(req: AcademicHeaderRequest):
             raise HTTPException(status_code=400, detail="Invalid image data.")
         
         service = get_header_service()
-        # Extract fields using sample ROI definitions
-        name_res = service._ocr_field(img, "student_name")
-        prn_res = service._ocr_field(img, "prn")
-        branch_res = service._ocr_field(img, "branch")
-        div_res = service._ocr_field(img, "division")
-        sem_res = service._ocr_field(img, "semester")
+        extracted_meta = service.extract_metadata_from_image(img)
 
         return {
             "status": "success",
-            "metadata": {
-                "student_name": name_res,
-                "prn": prn_res,
-                "branch": branch_res,
-                "division": div_res,
-                "semester": sem_res
-            }
+            "metadata": extracted_meta
         }
     except Exception as e:
         logger.exception("Academic header metadata extraction failed")
@@ -470,3 +486,140 @@ def extract_marks_verification(req: AcademicHeaderRequest):
     except Exception as e:
         logger.exception("Marks verification failed")
         raise HTTPException(status_code=500, detail=f"Failed to perform marks verification: {str(e)}")
+
+
+# ==============================================================================
+# MONGODB CLASSROOM & STUDENT SUBMISSION API ENDPOINTS
+# ==============================================================================
+
+class ClassroomCreateRequest(BaseModel):
+    year: str
+    branch: str
+    division: str
+    semester: str
+    subject: str
+    exam_name: Optional[str] = "IA-1"
+    max_marks_config: Optional[Dict[str, Any]] = None
+
+class StudentSubmissionRequest(BaseModel):
+    classroom_id: str
+    student_metadata: Dict[str, Any]
+    marks_data: Dict[str, Any]
+    raw_image_b64: Optional[str] = None
+
+
+@app.post("/api/classrooms")
+def create_classroom_endpoint(req: ClassroomCreateRequest):
+    """Registers a new classroom/exam batch in MongoDB Atlas."""
+    try:
+        from backend.services.submission_service import create_or_get_classroom
+        cls_doc = create_or_get_classroom(
+            year=req.year,
+            branch=req.branch,
+            division=req.division,
+            semester=req.semester,
+            subject=req.subject,
+            exam_name=req.exam_name or "IA-1",
+            max_marks_config=req.max_marks_config
+        )
+        return {"status": "success", "classroom": cls_doc}
+    except Exception as e:
+        logger.exception("Classroom creation failed")
+        raise HTTPException(status_code=500, detail=f"Failed to create classroom: {str(e)}")
+
+
+@app.get("/api/classrooms")
+def list_classrooms_endpoint():
+    """Lists all registered classrooms for student and faculty selection dropdowns."""
+    try:
+        from backend.services.submission_service import list_classrooms
+        classes = list_classrooms()
+        return {"status": "success", "count": len(classes), "classrooms": classes}
+    except Exception as e:
+        logger.exception("Classroom listing failed")
+        raise HTTPException(status_code=500, detail=f"Failed to list classrooms: {str(e)}")
+
+
+@app.post("/api/submissions")
+def save_student_submission_endpoint(req: StudentSubmissionRequest):
+    """
+    Saves or updates a student's extracted and verified marksheet in MongoDB Atlas.
+    Uses smart upsert to prevent duplicate student entries.
+    """
+    try:
+        from backend.services.submission_service import save_or_update_submission
+        saved = save_or_update_submission(
+            classroom_id=req.classroom_id,
+            student_metadata=req.student_metadata,
+            marks_data=req.marks_data,
+            raw_image_url=None
+        )
+        return {"status": "success", "submission": saved}
+    except Exception as e:
+        logger.exception("Student submission save failed")
+        raise HTTPException(status_code=500, detail=f"Failed to save submission: {str(e)}")
+
+
+@app.get("/api/submissions/{classroom_id}")
+def get_classroom_submissions_endpoint(classroom_id: str):
+    """
+    Retrieves all student submissions for a given classroom, strictly sorted
+    by natural numeric Roll Number ascending.
+    """
+    try:
+        from backend.services.submission_service import get_classroom_submissions
+        roster = get_classroom_submissions(classroom_id)
+        return {
+            "status": "success",
+            "classroom_id": classroom_id,
+            "total_students": len(roster),
+            "submissions": roster
+        }
+    except Exception as e:
+        logger.exception("Fetching classroom submissions failed")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch classroom submissions: {str(e)}")
+
+
+@app.get("/api/export/master-excel/{classroom_id}")
+def export_master_excel_endpoint(classroom_id: str):
+    """
+    Compiles and downloads a single Master Class Excel Grade Sheet containing
+    all submitted students sorted systematically by Roll Number.
+    """
+    try:
+        from backend.services.submission_service import generate_master_excel_bytes
+        excel_bytes = generate_master_excel_bytes(classroom_id)
+        headers = {
+            'Content-Disposition': f'attachment; filename="master_grade_sheet_{classroom_id}.xlsx"'
+        }
+        return Response(
+            content=excel_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers=headers
+        )
+    except Exception as e:
+        logger.exception("Master Excel export failed")
+        raise HTTPException(status_code=500, detail=f"Failed to generate Master Excel: {str(e)}")
+
+
+@app.get("/api/export/master-csv/{classroom_id}")
+def export_master_csv_endpoint(classroom_id: str):
+    """
+    Compiles and downloads a clean Master Class CSV file containing all
+    submitted students sorted systematically by Roll Number.
+    """
+    try:
+        from backend.services.submission_service import generate_master_csv_string
+        csv_str = generate_master_csv_string(classroom_id)
+        headers = {
+            'Content-Disposition': f'attachment; filename="master_grade_sheet_{classroom_id}.csv"'
+        }
+        return Response(
+            content=csv_str.encode('utf-8'),
+            media_type="text/csv",
+            headers=headers
+        )
+    except Exception as e:
+        logger.exception("Master CSV export failed")
+        raise HTTPException(status_code=500, detail=f"Failed to generate Master CSV: {str(e)}")
+

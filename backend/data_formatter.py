@@ -4,7 +4,7 @@ import pandas as pd
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 def convert_sections_to_dataframes(sections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Converts section matrix data into Pandas DataFrames with cleaned numeric types."""
@@ -43,12 +43,120 @@ def convert_sections_to_dataframes(sections: List[Dict[str, Any]]) -> List[Dict[
 
     return result
 
-def export_to_excel_bytes(sections: List[Dict[str, Any]]) -> bytes:
+def attach_metadata_to_sections(sections: List[Dict[str, Any]], metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Prepends student metadata columns (Student Name, PRN Number, Roll No, Branch, Division, Semester)
+    to section table headers and rows so that student details and marks exist in a single row.
+    """
+    if not metadata or not any(str(v).strip() for v in metadata.values()):
+        return sections
+
+    meta_cols = [
+        ("Student Name", metadata.get("student_name", "")),
+        ("PRN Number", metadata.get("prn", "")),
+        ("Roll No", metadata.get("roll_no", "")),
+        ("Branch", metadata.get("branch", "")),
+        ("Division", metadata.get("division", "")),
+        ("Semester", metadata.get("semester", "")),
+        ("Subject", metadata.get("subject", ""))
+    ]
+
+    active_meta_cols = [(label, str(val).strip()) for label, val in meta_cols if str(val).strip()]
+    if not active_meta_cols:
+        return sections
+
+    meta_headers = [label for label, _ in active_meta_cols]
+
+    updated_sections = []
+    for sec in sections:
+        sec_copy = dict(sec)
+        orig_headers = list(sec.get("headers", []))
+        orig_rows = sec.get("rows", [])
+
+        # Check if metadata columns are already present
+        meta_indices = {}
+        for idx, h in enumerate(orig_headers):
+            h_norm = str(h).strip().lower()
+            for label, _ in active_meta_cols:
+                if h_norm == label.lower():
+                    meta_indices[label] = idx
+
+        if meta_indices:
+            # Metadata columns already exist; update their row values with latest user edits!
+            new_rows = []
+            for r_idx, r_cells in enumerate(orig_rows):
+                new_r_cells = list(r_cells)
+                first_cell_text = str(r_cells[0].get("value", "")).lower() if r_cells else ""
+                is_max_marks_row = "max" in first_cell_text or "q.no" in first_cell_text
+
+                for label, val in active_meta_cols:
+                    if label in meta_indices:
+                        col_i = meta_indices[label]
+                        cell_val = "Max Marks" if is_max_marks_row and label == "Student Name" else (val if not is_max_marks_row else "")
+                        if col_i < len(new_r_cells):
+                            new_r_cells[col_i] = {
+                                "text": str(cell_val),
+                                "value": str(cell_val),
+                                "is_number": False,
+                                "bbox": None,
+                                "confidence": 1.0,
+                                "classifier": "Student Metadata Header"
+                            }
+                new_rows.append(new_r_cells)
+
+            sec_copy["rows"] = new_rows
+            sec_copy["metadata"] = metadata
+            updated_sections.append(sec_copy)
+            continue
+
+        new_headers = meta_headers + orig_headers
+
+        new_rows = []
+        for r_idx, r_cells in enumerate(orig_rows):
+            new_r_cells = []
+            
+            # Check if this row is a Max Marks header row vs Marks Awarded row
+            first_cell_text = str(r_cells[0].get("value", "")).lower() if r_cells else ""
+            is_max_marks_row = "max" in first_cell_text or "q.no" in first_cell_text
+
+            for label, val in active_meta_cols:
+                cell_val = "Max Marks" if is_max_marks_row and label == "Student Name" else (val if not is_max_marks_row else "")
+                new_r_cells.append({
+                    "text": str(cell_val),
+                    "value": str(cell_val),
+                    "is_number": False,
+                    "bbox": None,
+                    "confidence": 1.0,
+                    "classifier": "Student Metadata Header"
+                })
+            
+            new_r_cells.extend(r_cells)
+            new_rows.append(new_r_cells)
+
+        sec_copy["headers"] = new_headers
+        sec_copy["rows"] = new_rows
+        sec_copy["columns_count"] = len(new_headers)
+        sec_copy["metadata"] = metadata
+        updated_sections.append(sec_copy)
+
+    return updated_sections
+
+def export_to_excel_bytes(sections: List[Dict[str, Any]], metadata: Optional[Dict[str, Any]] = None) -> bytes:
     """
     Generates a beautifully styled Excel (.xlsx) file in bytes.
     Includes custom header fills, cell number formatting, auto-column sizing,
-    and multi-tab worksheets for multiple document sections.
+    and prepended student metadata columns for single-row Excel export.
     """
+    meta_to_use = metadata
+    if not meta_to_use:
+        for s in sections:
+            if s.get("metadata"):
+                meta_to_use = s.get("metadata")
+                break
+
+    if meta_to_use:
+        sections = attach_metadata_to_sections(sections, meta_to_use)
+
     wb = openpyxl.Workbook()
     # Remove default sheet
     wb.remove(wb.active)
@@ -188,8 +296,18 @@ def _sanitize_csv_value(val) -> str:
             return "'" + s  # escape formula
     return s
 
-def export_to_csv_string(sections: List[Dict[str, Any]]) -> str:
-    """Generates clean CSV text with section boundary titles."""
+def export_to_csv_string(sections: List[Dict[str, Any]], metadata: Optional[Dict[str, Any]] = None) -> str:
+    """Generates clean CSV text with section boundary titles and prepended student metadata."""
+    meta_to_use = metadata
+    if not meta_to_use:
+        for s in sections:
+            if s.get("metadata"):
+                meta_to_use = s.get("metadata")
+                break
+
+    if meta_to_use:
+        sections = attach_metadata_to_sections(sections, meta_to_use)
+
     lines = []
     for sec in sections:
         title = sec.get("title", "Section")

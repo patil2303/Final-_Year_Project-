@@ -127,14 +127,14 @@ class HeaderExtractionService:
             validated_val = self._validate_field(field_name, val)
             return {"value": validated_val, "confidence": conf, "preprocessing_used": "CLAHE"}
 
-        # Default mock values for demonstration/unit tests
+        # Empty default fallbacks instead of hardcoded values
         default_mock_values = {
-            "student_name": "SHREYAS SAMADHAN PATIL",
-            "prn": "2311050037",
-            "branch": "IT",
-            "division": "B",
-            "semester": "II",
-            "subject": "Physics"
+            "student_name": "",
+            "prn": "",
+            "branch": "",
+            "division": "",
+            "semester": "",
+            "subject": ""
         }
         
         # Initial variant is grayscale
@@ -513,3 +513,122 @@ class HeaderExtractionService:
             "student": legacy_student,
             "headers_detailed": extracted_results
         }
+
+    def extract_metadata_from_image(self, cv_img: np.ndarray) -> dict:
+        """
+        Dynamically extracts student metadata (Name, PRN, Roll No, Branch, Division, Semester, Subject)
+        from an image using Gemini Vision AI or localized OCR pattern recognition.
+        """
+        import re
+        if cv_img is None or cv_img.size == 0:
+            return {"student_name": "", "prn": "", "roll_no": "", "branch": "", "division": "", "semester": "", "subject": ""}
+
+        # 1. Try Gemini Vision AI first if API key available
+        try:
+            from backend.gemini_vision_engine import _get_gemini_api_key, extract_with_gemini_vision
+            if _get_gemini_api_key():
+                res = extract_with_gemini_vision(cv_img, return_metadata=True)
+                if isinstance(res, tuple) and len(res) == 2:
+                    _, g_meta = res
+                    if g_meta and any(g_meta.values()):
+                        return {
+                            "student_name": str(g_meta.get("student_name", "")).strip(),
+                            "prn": str(g_meta.get("prn", "")).strip(),
+                            "roll_no": str(g_meta.get("roll_no", "")).strip(),
+                            "branch": str(g_meta.get("branch", "")).strip(),
+                            "division": str(g_meta.get("division", "")).strip(),
+                            "semester": str(g_meta.get("semester", "")).strip(),
+                            "subject": str(g_meta.get("subject", "")).strip()
+                        }
+        except Exception as e:
+            logger.warning(f"Gemini metadata extraction fallback: {e}")
+
+        # 2. Local OCR Fallback on top 40% of image
+        try:
+            from backend.ocr_engine import get_ocr_reader
+            reader = get_ocr_reader()
+            h, w = cv_img.shape[:2]
+            header_crop = cv_img[0:int(h * 0.4), 0:w]
+            
+            results = reader.readtext(header_crop)
+            full_text = " ".join([res[1] for res in results])
+            
+            # Clean text by removing college name noise
+            sanitized_text = re.sub(r'\b(knowledge|second nature|acpce|college of engineering|jawahar education|chudaman|annasaheb)\b', '', full_text, flags=re.IGNORECASE)
+
+            # Enhanced pattern extraction for Student Name (e.g. SHREYAS SAMADHAN PATIL)
+            name_val = ""
+            name_match = re.search(r'(?:Name\s+of\s+the\s+Student|Name|Surname)[:\s]*([A-Za-z\s]{4,50})', sanitized_text, re.IGNORECASE)
+            if name_match:
+                candidate = name_match.group(1).strip()
+                # Clean up field noise labels
+                candidate = re.sub(r'\b(In Block Letters|Block|Letters|Surname|First Name|Middle Name|PRN|Class|Branch|Division|Semester|Subject|Signature)\b', '', candidate, flags=re.IGNORECASE).strip()
+                if len(candidate) >= 4 and not re.search(r'(?:with date|full|junior)', candidate, re.IGNORECASE):
+                    name_val = candidate
+            
+            if not name_val:
+                # Search for consecutive capitalized words in header text
+                cap_words = re.findall(r'\b[A-Z]{3,15}\b', sanitized_text)
+                ignored_words = {"ANNASAHEB", "CHUDAMAN", "PATIL_COLLEGE", "COLLEGE", "ENGINEERING", "JAWAHAR", "EDUCATION", "INTERNAL", "ASSESSMENT", "PHYSICS", "CHEMISTRY", "FIRST", "YEAR", "NAME", "STUDENT", "BLOCK", "LETTERS", "SURNAME", "BRANCH", "CLASS", "DIVISION", "SEMESTER", "TOTAL", "EXAMINER", "SIGNATURE", "PLEASE", "START", "WRITING", "JUNIOR", "SUPERVISION", "DATE", "WITH"}
+                valid_name_words = [w for w in cap_words if w.upper() not in ignored_words]
+                if len(valid_name_words) >= 2:
+                    name_val = " ".join(valid_name_words[:3])
+
+            # Enhanced PRN extraction (e.g. 231051037 from individual digit boxes)
+            prn_val = ""
+            prn_match = re.search(r'(?:PRN)[:\s]*([0-9\s]{6,20})', sanitized_text, re.IGNORECASE)
+            if prn_match:
+                digits = "".join(re.findall(r'\d', prn_match.group(1)))
+                if len(digits) >= 6:
+                    prn_val = digits
+            
+            if not prn_val:
+                all_digits = "".join(re.findall(r'\b\d\b', sanitized_text[:300])) # single boxed digits
+                if len(all_digits) >= 8:
+                    prn_val = all_digits[:10]
+
+            # Roll No extraction (e.g. B-63, B63 at top right corner)
+            roll_no_val = ""
+            top_right_crop = cv_img[0:int(h * 0.22), int(w * 0.55):w]
+            tr_results = reader.readtext(top_right_crop)
+            tr_text = " ".join([res[1] for res in tr_results])
+            
+            roll_match = re.search(r'\b([A-D]\s*[-–—]?\s*\d{1,3})\b', tr_text, re.IGNORECASE)
+            if not roll_match:
+                roll_match = re.search(r'\b([A-D]\s*[-–—]?\s*\d{1,3})\b', sanitized_text, re.IGNORECASE)
+                
+            if roll_match:
+                roll_no_val = roll_match.group(1).replace(" ", "").upper()
+
+            branch_val = ""
+            for b in self.known_branches:
+                if re.search(rf'\b{b}\b', sanitized_text, re.IGNORECASE):
+                    branch_val = b
+                    break
+                    
+            div_match = re.search(r'(?:Div|Division)[:\s]*([A-Za-z0-9/\-]{1,10})', sanitized_text, re.IGNORECASE)
+            sem_match = re.search(r'(?:Sem|Semester)[:\s]*([IVXivx1-8]{1,6})', sanitized_text, re.IGNORECASE)
+            
+            subj_match = re.search(r'(?:Subject)[:\s]*([A-Za-z\s]{3,20})', sanitized_text, re.IGNORECASE)
+            subj_val = subj_match.group(1).strip() if subj_match else ""
+
+            return {
+                "student_name": name_val,
+                "prn": prn_val,
+                "roll_no": roll_no_val,
+                "branch": branch_val,
+                "division": div_match.group(1).strip().upper() if div_match else "",
+                "semester": sem_match.group(1).strip().upper() if sem_match else "",
+                "subject": subj_val
+            }
+        except Exception as err:
+            logger.warning(f"Local OCR metadata extraction failed: {err}")
+            return {
+                "student_name": "",
+                "prn": "",
+                "roll_no": "",
+                "branch": "",
+                "division": "",
+                "semester": "",
+                "subject": ""
+            }

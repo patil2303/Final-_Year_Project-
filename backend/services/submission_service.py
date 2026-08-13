@@ -1,0 +1,387 @@
+import re
+import io
+import datetime
+import logging
+from typing import Dict, Any, List, Optional
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+
+from backend.database.mongo import get_classrooms_collection, get_submissions_collection
+
+logger = logging.getLogger(__name__)
+
+STANDARD_QUESTION_HEADERS = ["1a", "1b", "1c", "1d", "1e", "1f", "2a", "2b", "3a", "3b"]
+
+
+def parse_numeric_roll(roll_str: Optional[str]) -> int:
+    """
+    Extracts the pure integer portion from composite roll numbers for natural sorting.
+    Examples:
+      'SE-46' -> 46
+      '44 / SE' -> 44
+      'B-63' -> 63
+      '12' -> 12
+      'Roll 5' -> 5
+    """
+    if not roll_str:
+        return 999999
+    
+    # Match all digit sequences
+    digits = re.findall(r'\b\d+\b', str(roll_str))
+    if digits:
+        try:
+            return int(digits[0])
+        except ValueError:
+            pass
+            
+    # Fallback to any consecutive digits
+    any_digits = re.findall(r'\d+', str(roll_str))
+    if any_digits:
+        try:
+            return int(any_digits[0])
+        except ValueError:
+            pass
+            
+    return 999999
+
+
+# ==============================================================================
+# CLASSROOM / BATCH MANAGEMENT
+# ==============================================================================
+
+def create_or_get_classroom(
+    year: str,
+    branch: str,
+    division: str,
+    semester: str,
+    subject: str,
+    exam_name: str = "IA-1",
+    max_marks_config: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Registers a new classroom/exam batch or retrieves an existing one.
+    Generates a deterministic classroom_id (e.g. 'SE_IT_B_SEM4_CNND_IA1').
+    """
+    col = get_classrooms_collection()
+    
+    clean_yr = re.sub(r'[^A-Za-z0-9]', '', year).upper() or "SE"
+    clean_br = re.sub(r'[^A-Za-z0-9]', '', branch).upper() or "IT"
+    clean_div = re.sub(r'[^A-Za-z0-9]', '', division).upper() or "A"
+    clean_sem = re.sub(r'[^A-Za-z0-9]', '', semester).upper() or "IV"
+    clean_subj = re.sub(r'[^A-Za-z0-9]', '', subject).upper() or "CNND"
+    clean_exam = re.sub(r'[^A-Za-z0-9]', '', exam_name).upper() or "IA1"
+    
+    classroom_id = f"{clean_yr}_{clean_br}_{clean_div}_{clean_sem}_{clean_subj}_{clean_exam}"
+    
+    default_max_marks = {
+        "1a": "2", "1b": "2", "1c": "2", "1d": "2", "1e": "2", "1f": "2",
+        "2a": "5", "2b": "5", "3a": "5", "3b": "5", "total": "20"
+    }
+    
+    doc = {
+        "classroom_id": classroom_id,
+        "year": year.strip().upper(),
+        "branch": branch.strip().upper(),
+        "division": division.strip().upper(),
+        "semester": semester.strip().upper(),
+        "subject": subject.strip().upper(),
+        "exam_name": exam_name.strip(),
+        "max_marks_config": max_marks_config or default_max_marks,
+        "updated_at": datetime.datetime.now(datetime.timezone.utc)
+    }
+    
+    col.update_one(
+        {"classroom_id": classroom_id},
+        {"$set": doc, "$setOnInsert": {"created_at": datetime.datetime.now(datetime.timezone.utc)}},
+        upsert=True
+    )
+    
+    return col.find_one({"classroom_id": classroom_id}, {"_id": 0})
+
+
+def list_classrooms() -> List[Dict[str, Any]]:
+    """Returns all registered classrooms sorted by creation time."""
+    col = get_classrooms_collection()
+    cursor = col.find({}, {"_id": 0}).sort("created_at", -1)
+    return list(cursor)
+
+
+# ==============================================================================
+# STUDENT SUBMISSION MANAGEMENT (SMART UPSERT & NATURAL SORT)
+# ==============================================================================
+
+def save_or_update_submission(
+    classroom_id: str,
+    student_metadata: Dict[str, Any],
+    marks_data: Dict[str, Any],
+    raw_image_url: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Saves a student's extracted and verified marksheet to MongoDB.
+    Uses smart upsert on (classroom_id, prn) or (classroom_id, roll_no)
+    so re-submissions update existing rows cleanly without duplicating.
+    """
+    col = get_submissions_collection()
+    
+    prn = str(student_metadata.get("prn", "")).strip()
+    roll_no = str(student_metadata.get("roll_no", "")).strip()
+    student_name = str(student_metadata.get("student_name", "")).strip().upper()
+    branch = str(student_metadata.get("branch", "")).strip().upper()
+    division = str(student_metadata.get("division", "")).strip().upper()
+    semester = str(student_metadata.get("semester", "")).strip().upper()
+    subject = str(student_metadata.get("subject", "")).strip().upper()
+    
+    roll_num = parse_numeric_roll(roll_no)
+    total_marks = str(marks_data.get("total", "")).strip()
+    
+    # Filter only question marks
+    question_marks = {}
+    for k, v in marks_data.items():
+        if k != "total":
+            question_marks[str(k).lower()] = str(v).strip()
+            
+    submission_doc = {
+        "classroom_id": classroom_id,
+        "student_name": student_name,
+        "prn": prn,
+        "roll_no": roll_no,
+        "roll_numeric": roll_num,
+        "branch": branch,
+        "division": division,
+        "semester": semester,
+        "subject": subject,
+        "marks_awarded": question_marks,
+        "total_marks": total_marks,
+        "status": "submitted",
+        "raw_image_url": raw_image_url,
+        "updated_at": datetime.datetime.now(datetime.timezone.utc)
+    }
+    
+    # Match query: match on PRN or Roll No within the same classroom
+    filter_query = {"classroom_id": classroom_id}
+    if prn:
+        filter_query["prn"] = prn
+    elif roll_no:
+        filter_query["roll_no"] = roll_no
+    else:
+        filter_query["student_name"] = student_name
+        
+    col.update_one(
+        filter_query,
+        {
+            "$set": submission_doc,
+            "$setOnInsert": {"submitted_at": datetime.datetime.now(datetime.timezone.utc)}
+        },
+        upsert=True
+    )
+    
+    logger.info(f"[MongoDB] Submission saved for student: {student_name} (Roll: {roll_no}, PRN: {prn}) in class {classroom_id}")
+    
+    # Return saved document
+    saved = col.find_one(filter_query, {"_id": 0})
+    return saved or submission_doc
+
+
+def get_classroom_submissions(classroom_id: str) -> List[Dict[str, Any]]:
+    """
+    Retrieves all student submissions for a classroom, strictly sorted
+    by natural numeric Roll Number (ascending: 1, 2, ... 44, 46, 63).
+    """
+    col = get_submissions_collection()
+    cursor = col.find({"classroom_id": classroom_id}, {"_id": 0}).sort([
+        ("roll_numeric", 1),
+        ("prn", 1),
+        ("student_name", 1)
+    ])
+    return list(cursor)
+
+
+# ==============================================================================
+# MASTER EXCEL & CSV GRADE SHEET COMPILER (MULTI-STUDENT CONSOLIDATION)
+# ==============================================================================
+
+def generate_master_excel_bytes(classroom_id: str) -> bytes:
+    """
+    Compiles an openpyxl Master Class Grade Sheet aggregating all students
+    in the classroom into one single-file Excel table sorted by Roll No.
+    """
+    cls_col = get_classrooms_collection()
+    class_info = cls_col.find_one({"classroom_id": classroom_id}, {"_id": 0}) or {}
+    
+    submissions = get_classroom_submissions(classroom_id)
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Master Grade Sheet"
+    
+    # Header Styles
+    title_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+    title_font = Font(name="Calibri", size=14, bold=True, color="FFFFFF")
+    
+    header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    
+    max_marks_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+    max_marks_font = Font(name="Calibri", size=10, bold=True, color="475569")
+    
+    grid_border = Border(
+        left=Side(style='thin', color='CBD5E1'),
+        right=Side(style='thin', color='CBD5E1'),
+        top=Side(style='thin', color='CBD5E1'),
+        bottom=Side(style='thin', color='CBD5E1')
+    )
+    
+    # Row 1: Banner
+    subj = class_info.get("subject", "EXAM")
+    yr = class_info.get("year", "SE")
+    br = class_info.get("branch", "IT")
+    div = class_info.get("division", "A")
+    sem = class_info.get("semester", "IV")
+    exam = class_info.get("exam_name", "IA-1")
+    
+    banner_title = f"{yr} {br} (DIV {div}) - {subj} (SEM {sem}) - {exam} MASTER GRADE SHEET"
+    
+    headers = [
+        "Sr.No.", "Roll No", "PRN Number", "Student Name",
+        "Branch", "Div", "Sem", "Subject",
+        "1a", "1b", "1c", "1d", "1e", "1f",
+        "2a", "2b", "3a", "3b",
+        "Total Marks", "Status"
+    ]
+    
+    num_cols = len(headers)
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
+    banner_cell = ws.cell(row=1, column=1, value=banner_title)
+    banner_cell.fill = title_fill
+    banner_cell.font = title_font
+    banner_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 32
+    
+    # Row 2: Table Column Headers
+    for c_idx, h_text in enumerate(headers, 1):
+        cell = ws.cell(row=2, column=c_idx, value=h_text)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = grid_border
+    ws.row_dimensions[2].height = 24
+    
+    # Row 3: Max Marks Row
+    max_config = class_info.get("max_marks_config", {})
+    max_row_vals = [
+        "-", "MAX", "-", "MAX MARKS PER QUESTION",
+        "-", "-", "-", "-",
+        max_config.get("1a", "2"), max_config.get("1b", "2"), max_config.get("1c", "2"),
+        max_config.get("1d", "2"), max_config.get("1e", "2"), max_config.get("1f", "2"),
+        max_config.get("2a", "5"), max_config.get("2b", "5"),
+        max_config.get("3a", "5"), max_config.get("3b", "5"),
+        max_config.get("total", "20"), "-"
+    ]
+    
+    for c_idx, val in enumerate(max_row_vals, 1):
+        cell = ws.cell(row=3, column=c_idx, value=val)
+        cell.fill = max_marks_fill
+        cell.font = max_marks_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = grid_border
+    ws.row_dimensions[3].height = 20
+    
+    # Rows 4..N: Student Rows (Sorted by Roll Number)
+    current_r = 4
+    for s_idx, sub in enumerate(submissions, 1):
+        marks = sub.get("marks_awarded", {})
+        
+        row_data = [
+            s_idx,
+            sub.get("roll_no", ""),
+            sub.get("prn", ""),
+            sub.get("student_name", ""),
+            sub.get("branch", ""),
+            sub.get("division", ""),
+            sub.get("semester", ""),
+            sub.get("subject", ""),
+            marks.get("1a", ""),
+            marks.get("1b", ""),
+            marks.get("1c", ""),
+            marks.get("1d", ""),
+            marks.get("1e", ""),
+            marks.get("1f", ""),
+            marks.get("2a", ""),
+            marks.get("2b", ""),
+            marks.get("3a", ""),
+            marks.get("3b", ""),
+            sub.get("total_marks", ""),
+            sub.get("status", "Verified")
+        ]
+        
+        for c_idx, val in enumerate(row_data, 1):
+            cell = ws.cell(row=current_r, column=c_idx)
+            # Try float/int conversion for total and numbers if possible
+            if isinstance(val, (int, float)):
+                cell.value = val
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+            else:
+                cell.value = str(val) if val is not None else ""
+                cell.alignment = Alignment(horizontal="left" if c_idx == 4 else "center", vertical="center")
+            cell.border = grid_border
+            
+        ws.row_dimensions[current_r].height = 20
+        current_r += 1
+        
+    # Auto-fit column widths
+    for col in ws.columns:
+        col_cells = list(col)
+        if not col_cells:
+            continue
+        max_len = max((len(str(c.value or '')) for c in col_cells[1:]), default=10)
+        col_letter = get_column_letter(col_cells[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 11)
+        
+    ws.column_dimensions['D'].width = 30  # Generous width for full student name
+    
+    output = io.BytesIO()
+    wb.save(output)
+    return output.getvalue()
+
+
+def generate_master_csv_string(classroom_id: str) -> str:
+    """Compiles a clean Master CSV string containing all students in the classroom."""
+    submissions = get_classroom_submissions(classroom_id)
+    
+    headers = [
+        "Sr.No.", "Roll No", "PRN Number", "Student Name",
+        "Branch", "Division", "Semester", "Subject",
+        "1a", "1b", "1c", "1d", "1e", "1f", "2a", "2b", "3a", "3b",
+        "Total Marks", "Status"
+    ]
+    
+    lines = [",".join(f'"{h}"' for h in headers)]
+    
+    for s_idx, sub in enumerate(submissions, 1):
+        marks = sub.get("marks_awarded", {})
+        row = [
+            str(s_idx),
+            str(sub.get("roll_no", "")),
+            str(sub.get("prn", "")),
+            str(sub.get("student_name", "")),
+            str(sub.get("branch", "")),
+            str(sub.get("division", "")),
+            str(sub.get("semester", "")),
+            str(sub.get("subject", "")),
+            str(marks.get("1a", "")),
+            str(marks.get("1b", "")),
+            str(marks.get("1c", "")),
+            str(marks.get("1d", "")),
+            str(marks.get("1e", "")),
+            str(marks.get("1f", "")),
+            str(marks.get("2a", "")),
+            str(marks.get("2b", "")),
+            str(marks.get("3a", "")),
+            str(marks.get("3b", "")),
+            str(sub.get("total_marks", "")),
+            str(sub.get("status", "Verified"))
+        ]
+        lines.append(",".join(f'"{val}"' for val in row))
+        
+    return "\n".join(lines)

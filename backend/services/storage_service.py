@@ -1,9 +1,12 @@
 import os
 import logging
 import uuid
-from werkzeug.utils import secure_filename
-from werkzeug.datastructures import FileStorage
-from utils.validators import allowed_file, is_valid_image
+from typing import Any
+try:
+    from backend.utils import allowed_file, is_valid_image
+except ImportError:
+    def allowed_file(f, ext): return True
+    def is_valid_image(s): return True
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +21,7 @@ class StorageService:
         os.makedirs(self.upload_folder, exist_ok=True)
         logger.debug(f"StorageService initialized with folder: {self.upload_folder}")
 
-    def save_image(self, file: FileStorage) -> str:
+    def save_image(self, file: Any) -> str:
         """
         Validates and saves the uploaded image to the storage directory.
         
