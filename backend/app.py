@@ -54,13 +54,17 @@ if os.path.exists(STATIC_DIR):
     if os.path.exists(js_dir):
         app.mount("/js", StaticFiles(directory=js_dir), name="js")
 
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 def read_root():
     index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
             return f.read()
-    return "<h1>Photo & PDF to Excel Server Running</h1>"
+    return "<h1>Academic Marksheet & Grading Portal Running</h1>"
+
+@app.api_route("/health", methods=["GET", "HEAD"])
+def health_check():
+    return {"status": "healthy", "service": "marksheet-grading-portal"}
 
 class AutoCropRequest(BaseModel):
     image_b64: str
