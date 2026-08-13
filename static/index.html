@@ -14,7 +14,7 @@
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="css/style.css?v=3.3">
+    <link rel="stylesheet" href="css/style.css?v=3.4">
 </head>
 
 <body>
@@ -149,14 +149,37 @@
                     </button>
                 </div>
 
-                <!-- Card 2: Interactive Visual Crop Canvas -->
-                <div class="card preview-card" id="previewCard" style="display: none;">
-                    <div class="preview-header">
-                        <h3><i class="fa-solid fa-crop-simple"></i> Page Preview & Table ROI</h3>
-                        <p>Crop the marks table if needed or click Convert to process the full page</p>
+                <!-- Card 2: Interactive Page Crop Preview Card -->
+                <div class="card preview-card" id="pageCropPreviewCard" style="display: none;">
+                    <div class="card-header-flex">
+                        <div>
+                            <h3><i class="fa-solid fa-crop-simple"></i> Page Crop Preview & Table ROI</h3>
+                            <p>Auto detect the page or draw a manual crop box like a scanner app.</p>
+                        </div>
+                        <div class="crop-badge-container">
+                            <span class="badge-crop" id="cropBadge">Full page: 1204 × 1600</span>
+                        </div>
                     </div>
-                    <div class="canvas-container" id="canvasContainer">
-                        <canvas id="cropCanvas"></canvas>
+
+                    <!-- Scrollable Viewport Container with Scroll Indicators -->
+                    <div class="crop-viewport-wrapper">
+                        <div class="crop-viewport" id="cropViewport">
+                            <div class="crop-stage" id="cropStage">
+                                <img id="previewImage" alt="Page Crop Preview" src="" />
+
+                                <!-- Interactive Orange Crop Box Overlay -->
+                                <div class="crop-box" id="cropBox">
+                                    <div class="crop-handle handle-nw" data-handle="nw"></div>
+                                    <div class="crop-handle handle-ne" data-handle="ne"></div>
+                                    <div class="crop-handle handle-sw" data-handle="sw"></div>
+                                    <div class="crop-handle handle-se" data-handle="se"></div>
+                                    <div class="crop-handle handle-n" data-handle="n"></div>
+                                    <div class="crop-handle handle-s" data-handle="s"></div>
+                                    <div class="crop-handle handle-w" data-handle="w"></div>
+                                    <div class="crop-handle handle-e" data-handle="e"></div>
+                                </div>
+                            </div>
+                        </div>
                         <!-- Right Scroll Indicators -->
                         <div class="scroll-arrow arrow-top"><i class="fa-solid fa-caret-up"></i></div>
                         <div class="scroll-arrow arrow-bottom"><i class="fa-solid fa-caret-down"></i></div>
@@ -474,8 +497,8 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/spreadsheet_editor.js?v=3.3"></script>
-    <script src="js/app.js?v=3.3"></script>
+    <script src="js/spreadsheet_editor.js?v=3.4"></script>
+    <script src="js/app.js?v=3.4"></script>
 </body>
 
 </html>

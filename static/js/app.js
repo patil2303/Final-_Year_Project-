@@ -220,6 +220,262 @@ document.addEventListener('DOMContentLoaded', () => {
     // ------------------------------------------------------------------
     // 3. File Upload & Setup (Mobile Camera & Desktop)
     // ------------------------------------------------------------------
+    const pageCropPreviewCard = document.getElementById('pageCropPreviewCard');
+    const previewImage = document.getElementById('previewImage');
+    const cropStage = document.getElementById('cropStage');
+    const cropBox = document.getElementById('cropBox');
+    const cropBadge = document.getElementById('cropBadge');
+
+    let stageRect = { width: 1, height: 1 };
+    let cropPos = { left: 0, top: 0, width: 0, height: 0 };
+    let isDragging = false;
+    let isResizing = false;
+    let currentHandle = null;
+    let startMousePos = { x: 0, y: 0 };
+    let startCropPos = { left: 0, top: 0, width: 0, height: 0 };
+
+    function initCropOverlay() {
+        if (!cropStage) return;
+        stageRect = cropStage.getBoundingClientRect();
+        const defaultW = stageRect.width * 0.85;
+        const defaultH = stageRect.height * 0.25;
+        const defaultL = (stageRect.width - defaultW) / 2;
+        const defaultT = (stageRect.height - defaultH) / 3;
+        setCropPosPx(defaultL, defaultT, defaultW, defaultH);
+    }
+
+    function setCropPosPx(left, top, width, height) {
+        if (!cropStage || !cropBox) return;
+        stageRect = cropStage.getBoundingClientRect();
+        if (stageRect.width === 0 || stageRect.height === 0) return;
+
+        left = Math.max(0, Math.min(left, stageRect.width - 20));
+        top = Math.max(0, Math.min(top, stageRect.height - 20));
+        width = Math.max(20, Math.min(width, stageRect.width - left));
+        height = Math.max(20, Math.min(height, stageRect.height - top));
+
+        cropPos = { left, top, width, height };
+
+        cropBox.style.left = `${left}px`;
+        cropBox.style.top = `${top}px`;
+        cropBox.style.width = `${width}px`;
+        cropBox.style.height = `${height}px`;
+
+        const scaleX = originalImgWidth / stageRect.width;
+        const scaleY = originalImgHeight / stageRect.height;
+
+        const origX = Math.round(left * scaleX);
+        const origY = Math.round(top * scaleY);
+        const origW = Math.round(width * scaleX);
+        const origH = Math.round(height * scaleY);
+
+        currentCropRect = { x: origX, y: origY, width: origW, height: origH };
+
+        if (cropBadge) {
+            const modePrefix = isAutoCropped ? 'Auto crop:' : 'Manual crop:';
+            cropBadge.innerText = `${modePrefix} ${origW} × ${origH}`;
+        }
+    }
+
+    function setActiveCropButton(activeBtn) {
+        [btnAutoCrop, btnManualCrop, btnClearCrop].forEach(btn => {
+            if (btn) btn.classList.remove('active');
+        });
+        if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    async function triggerAutoCrop() {
+        if (!currentUploadedData || !currentUploadedData.image_b64) return;
+        setActiveCropButton(btnAutoCrop);
+
+        try {
+            const res = await fetch('/api/autocrop', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_b64: currentUploadedData.image_b64 })
+            });
+
+            const data = await res.json();
+            if (data.status === 'success' && data.crop) {
+                isAutoCropped = true;
+                const crop = data.crop;
+                stageRect = cropStage.getBoundingClientRect();
+                const scaleX = stageRect.width / originalImgWidth;
+                const scaleY = stageRect.height / originalImgHeight;
+
+                setCropPosPx(
+                    crop.x * scaleX,
+                    crop.y * scaleY,
+                    crop.width * scaleX,
+                    crop.height * scaleY
+                );
+            }
+        } catch (err) {
+            console.warn("Auto crop request failed, using manual crop box.", err);
+        }
+    }
+
+    if (btnAutoCrop) {
+        btnAutoCrop.addEventListener('click', () => triggerAutoCrop());
+    }
+
+    if (btnManualCrop) {
+        btnManualCrop.addEventListener('click', () => {
+            isAutoCropped = false;
+            setActiveCropButton(btnManualCrop);
+            if (currentCropRect && cropBadge) {
+                cropBadge.innerText = `Manual crop: ${currentCropRect.width} × ${currentCropRect.height}`;
+            }
+        });
+    }
+
+    if (btnClearCrop) {
+        btnClearCrop.addEventListener('click', () => {
+            isAutoCropped = false;
+            setActiveCropButton(btnClearCrop);
+            if (cropStage) {
+                stageRect = cropStage.getBoundingClientRect();
+                setCropPosPx(0, 0, stageRect.width, stageRect.height);
+                if (cropBadge) cropBadge.innerText = `Full page: ${originalImgWidth} × ${originalImgHeight}`;
+            }
+        });
+    }
+
+    // Crop box mouse drag & resize listeners
+    if (cropBox) {
+        cropBox.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('crop-handle')) {
+                isResizing = true;
+                currentHandle = e.target.getAttribute('data-handle');
+            } else {
+                isDragging = true;
+            }
+
+            isAutoCropped = false;
+            setActiveCropButton(btnManualCrop);
+
+            startMousePos = { x: e.clientX, y: e.clientY };
+            startCropPos = { ...cropPos };
+            e.stopPropagation();
+            e.preventDefault();
+        });
+
+        // Touch support
+        cropBox.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) return;
+            const touch = e.touches[0];
+            if (e.target.classList.contains('crop-handle')) {
+                isResizing = true;
+                currentHandle = e.target.getAttribute('data-handle');
+            } else {
+                isDragging = true;
+            }
+
+            isAutoCropped = false;
+            setActiveCropButton(btnManualCrop);
+
+            startMousePos = { x: touch.clientX, y: touch.clientY };
+            startCropPos = { ...cropPos };
+            e.stopPropagation();
+        });
+    }
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging && !isResizing) return;
+
+        const dx = e.clientX - startMousePos.x;
+        const dy = e.clientY - startMousePos.y;
+
+        if (isDragging) {
+            setCropPosPx(
+                startCropPos.left + dx,
+                startCropPos.top + dy,
+                startCropPos.width,
+                startCropPos.height
+            );
+        } else if (isResizing && currentHandle) {
+            let nL = startCropPos.left;
+            let nT = startCropPos.top;
+            let nW = startCropPos.width;
+            let nH = startCropPos.height;
+
+            if (currentHandle.includes('e')) nW = startCropPos.width + dx;
+            if (currentHandle.includes('s')) nH = startCropPos.height + dy;
+            if (currentHandle.includes('w')) {
+                nW = startCropPos.width - dx;
+                nL = startCropPos.left + dx;
+            }
+            if (currentHandle.includes('n')) {
+                nH = startCropPos.height - dy;
+                nT = startCropPos.top + dy;
+            }
+
+            setCropPosPx(nL, nT, nW, nH);
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+        isResizing = false;
+        currentHandle = null;
+    });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!isDragging && !isResizing) return;
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+
+        const dx = touch.clientX - startMousePos.x;
+        const dy = touch.clientY - startMousePos.y;
+
+        if (isDragging) {
+            setCropPosPx(
+                startCropPos.left + dx,
+                startCropPos.top + dy,
+                startCropPos.width,
+                startCropPos.height
+            );
+        } else if (isResizing && currentHandle) {
+            let nL = startCropPos.left;
+            let nT = startCropPos.top;
+            let nW = startCropPos.width;
+            let nH = startCropPos.height;
+
+            if (currentHandle.includes('e')) nW = startCropPos.width + dx;
+            if (currentHandle.includes('s')) nH = startCropPos.height + dy;
+            if (currentHandle.includes('w')) {
+                nW = startCropPos.width - dx;
+                nL = startCropPos.left + dx;
+            }
+            if (currentHandle.includes('n')) {
+                nH = startCropPos.height - dy;
+                nT = startCropPos.top + dy;
+            }
+
+            setCropPosPx(nL, nT, nW, nH);
+        }
+    });
+
+    document.addEventListener('touchend', () => {
+        isDragging = false;
+        isResizing = false;
+        currentHandle = null;
+    });
+
+    window.addEventListener('resize', () => {
+        if (currentUploadedData && currentCropRect && cropStage) {
+            stageRect = cropStage.getBoundingClientRect();
+            const scaleX = stageRect.width / originalImgWidth;
+            const scaleY = stageRect.height / originalImgHeight;
+            setCropPosPx(
+                currentCropRect.x * scaleX,
+                currentCropRect.y * scaleY,
+                currentCropRect.width * scaleX,
+                currentCropRect.height * scaleY
+            );
+        }
+    });
+
     async function uploadFile(file) {
         if (!file) return;
 
@@ -246,11 +502,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 dropZone.style.display = 'none';
                 filePreviewBar.style.display = 'flex';
                 cropControlStrip.style.display = 'flex';
-                if (previewCard) previewCard.style.display = 'block';
+                if (pageCropPreviewCard) pageCropPreviewCard.style.display = 'block';
 
                 lblFileName.innerText = data.filename;
                 const fileExt = data.filename.split('.').pop().toUpperCase();
                 lblFileMeta.innerText = `${fileExt} File • ${data.total_pages} Page(s) • (${originalImgWidth}×${originalImgHeight}px)`;
+
+                const setupImageAndCrop = () => {
+                    initCropOverlay();
+                    if (cropStage) {
+                        stageRect = cropStage.getBoundingClientRect();
+                        setCropPosPx(0, 0, stageRect.width, stageRect.height);
+                        if (cropBadge) cropBadge.innerText = `Full page: ${originalImgWidth} × ${originalImgHeight}`;
+                        setActiveCropButton(btnClearCrop);
+                    }
+                };
+
+                if (previewImage) {
+                    previewImage.onload = () => {
+                        setTimeout(setupImageAndCrop, 100);
+                    };
+                    previewImage.src = data.image_b64;
+
+                    if (previewImage.complete && previewImage.naturalWidth > 0) {
+                        setTimeout(setupImageAndCrop, 100);
+                    }
+                }
 
                 btnConvert.disabled = false;
             } else {
@@ -290,7 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cameraInput) cameraInput.value = '';
         filePreviewBar.style.display = 'none';
         cropControlStrip.style.display = 'none';
-        if (previewCard) previewCard.style.display = 'none';
+        if (pageCropPreviewCard) pageCropPreviewCard.style.display = 'none';
         dropZone.style.display = 'block';
         btnConvert.disabled = true;
         resultCard.style.display = 'none';
