@@ -46,6 +46,60 @@ def parse_numeric_roll(roll_str: Optional[str]) -> int:
     return 999999
 
 
+def parse_mark_float(val: Any) -> float:
+    """Safely converts numeric or fractional mark strings ('2', '3 1/2', '1/2', '11/15') to float."""
+    if not val:
+        return 0.0
+    s = str(val).strip()
+    if not s:
+        return 0.0
+    if "/" in s:
+        if "1/2" in s:
+            base = s.replace("1/2", "").strip()
+            return (float(base) if base else 0.0) + 0.5
+        parts = s.split("/")
+        try:
+            return float(parts[0].strip())
+        except ValueError:
+            pass
+    try:
+        clean = re.sub(r'[^0-9.]', '', s)
+        return float(clean) if clean else 0.0
+    except ValueError:
+        return 0.0
+
+
+def normalize_total_marks(total_str: str, question_marks: Dict[str, Any]) -> str:
+    """
+    Normalizes total marks to prevent slash concatenation errors (e.g. '11/15' -> '11' or '14').
+    If total is empty or zero, calculates sum from individual question marks.
+    """
+    s = str(total_str or "").strip()
+    if "/" in s:
+        if "1/2" in s:
+            base = s.replace("1/2", "").strip()
+            num = (float(base) if base else 0.0) + 0.5
+            return str(int(num)) if num.is_integer() else str(num)
+        parts = s.split("/")
+        clean_num = parts[0].strip()
+        if clean_num:
+            return clean_num
+
+    if not s or s == "0":
+        calc_sum = 0.0
+        has_any = False
+        for q, v in question_marks.items():
+            val = parse_mark_float(v)
+            if val > 0:
+                calc_sum += val
+                has_any = True
+        if has_any:
+            return str(int(calc_sum)) if calc_sum.is_integer() else str(calc_sum)
+
+    return s
+
+
+
 # ==============================================================================
 # CLASSROOM / BATCH MANAGEMENT
 # ==============================================================================
@@ -133,13 +187,14 @@ def save_or_update_submission(
     subject = str(student_metadata.get("subject", "")).strip().upper()
     
     roll_num = parse_numeric_roll(roll_no)
-    total_marks = str(marks_data.get("total", "")).strip()
     
     # Filter only question marks
     question_marks = {}
     for k, v in marks_data.items():
         if k != "total":
             question_marks[str(k).lower()] = str(v).strip()
+            
+    total_marks = normalize_total_marks(marks_data.get("total", ""), question_marks)
             
     submission_doc = {
         "classroom_id": classroom_id,

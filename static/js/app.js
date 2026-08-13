@@ -867,6 +867,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function parseScoreValue(scoreStr, marksMap) {
+        const s = String(scoreStr || '').trim();
+        if (s) {
+            if (s.includes('1/2')) {
+                const base = s.replace('1/2', '').trim();
+                const baseNum = parseFloat(base) || 0;
+                return baseNum + 0.5;
+            }
+            if (s.includes('/')) {
+                const parts = s.split('/');
+                const num = parseFloat(parts[0].trim().replace(/[^0-9.]/g, ''));
+                if (!isNaN(num)) return num;
+            }
+            const cleaned = s.replace(/[^0-9.]/g, '');
+            const num = parseFloat(cleaned);
+            if (!isNaN(num)) return num;
+        }
+
+        // Fallback: calculate sum from individual awarded question marks
+        if (marksMap) {
+            let calcSum = 0;
+            let hasAny = false;
+            Object.values(marksMap).forEach(v => {
+                const sv = String(v || '').trim();
+                if (sv) {
+                    if (sv.includes('1/2')) {
+                        const base = sv.replace('1/2', '').trim();
+                        const bNum = parseFloat(base) || 0;
+                        calcSum += (bNum + 0.5);
+                        hasAny = true;
+                    } else {
+                        const cn = parseFloat(sv.replace(/[^0-9.]/g, ''));
+                        if (!isNaN(cn)) {
+                            calcSum += cn;
+                            hasAny = true;
+                        }
+                    }
+                }
+            });
+            if (hasAny) return calcSum;
+        }
+
+        return NaN;
+    }
+
     function renderFacultyMetrics(submissions) {
         if (!submissions || submissions.length === 0) {
             if (statTotalSubmissions) statTotalSubmissions.innerText = '0';
@@ -887,9 +932,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let topStudentName = '';
 
         submissions.forEach(s => {
-            const totStr = String(s.total_marks || '').replace(/[^0-9.]/g, '');
-            const totNum = parseFloat(totStr);
-            if (!isNaN(totNum)) {
+            const totNum = parseScoreValue(s.total_marks, s.marks_awarded);
+            if (!isNaN(totNum) && totNum >= 0) {
                 totalSum += totNum;
                 validScoresCount++;
                 if (totNum > highest) {
@@ -923,6 +967,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const rowsHtml = submissions.map((s, idx) => {
             const marks = s.marks_awarded || {};
+            const cleanTot = parseScoreValue(s.total_marks, marks);
+            const displayTotal = !isNaN(cleanTot) ? cleanTot : (s.total_marks || '-');
+
             return `
                 <tr>
                     <td><strong>${idx + 1}</strong></td>
@@ -939,7 +986,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${marks['2b'] || ''}</td>
                     <td>${marks['3a'] || ''}</td>
                     <td>${marks['3b'] || ''}</td>
-                    <td class="total-col">${s.total_marks || ''}</td>
+                    <td class="total-col" style="font-weight:700; color:#15803D;">${displayTotal}</td>
                     <td><span class="roster-badge-status"><i class="fa-solid fa-check"></i> ${s.status || 'Verified'}</span></td>
                 </tr>
             `;
