@@ -484,6 +484,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: formData
             });
 
+            if (!res.ok) {
+                hideLoading();
+                let errMsg = `Server returned status ${res.status}`;
+                try {
+                    const errJson = await res.json();
+                    errMsg = errJson.detail || errMsg;
+                } catch {
+                    const text = await res.text();
+                    if (text) errMsg = text;
+                }
+                alert(`Upload failed: ${errMsg}`);
+                return;
+            }
+
             const data = await res.json();
             hideLoading();
 

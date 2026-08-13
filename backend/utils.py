@@ -46,6 +46,13 @@ def universal_file_to_cv2_images(file_bytes: bytes, filename: str = "") -> List[
             return images
 
         # Standard single frame image
+        # Downscale large mobile phone images (e.g. 4000x3000) to max 1800px for speed & low memory
+        max_dim = 1800
+        w, h = pil_img.size
+        if max(w, h) > max_dim:
+            scale = max_dim / max(w, h)
+            pil_img = pil_img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
+
         rgb_img = pil_img.convert("RGB")
         img_bgr = cv2.cvtColor(np.array(rgb_img), cv2.COLOR_RGB2BGR)
         return [img_bgr]
@@ -57,6 +64,10 @@ def universal_file_to_cv2_images(file_bytes: bytes, filename: str = "") -> List[
         nparr = np.frombuffer(file_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is not None:
+            h, w = img.shape[:2]
+            if max(h, w) > 1800:
+                scale = 1800.0 / max(h, w)
+                img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
             return [img]
     except Exception as e:
         print(f"[OpenCV imdecode Error] {e}")

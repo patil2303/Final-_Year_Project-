@@ -30,9 +30,19 @@ from backend.ocr_engine import run_ocr_on_image
 from backend.section_detector import detect_sections_and_tables
 from backend.data_formatter import export_to_excel_bytes, export_to_csv_string
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(
     title="Photo & PDF to Excel Converter API",
     description="API for extracting tables, matrix arrays, numbers, and handwritten notes from photos and PDFs into Excel and CSV sheets."
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.middleware("http")
