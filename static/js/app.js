@@ -681,8 +681,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         showLoading(
-            'Extracting Marksheet & Table Grid',
-            'Running Gemini Vision + PyTorch CNN Evaluator with zero cell hallucination...'
+            'Extracting Marksheet Data',
+            'Processing marksheet table and student details...'
         );
 
         const payload = {
@@ -825,7 +825,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        showLoading('Submitting to Classroom Database', 'Syncing marksheet with MongoDB Atlas...');
+        showLoading('Submitting Marksheet', 'Saving student marksheet to classroom database...');
 
         try {
             const data = await safeFetchJson('/api/submissions', {
