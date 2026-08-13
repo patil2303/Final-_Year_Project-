@@ -43,9 +43,11 @@ def _get_gemini_api_key() -> Optional[str]:
 
 
 _PREFERRED_VISION_MODELS = [
-    "models/gemini-3.5-flash",
-    "models/gemini-3.6-flash",
-    "models/gemini-2.5-flash"
+    "models/gemini-flash-lite-latest",
+    "models/gemini-2.5-flash",
+    "models/gemini-flash-latest",
+    "models/gemini-3-flash-preview",
+    "models/gemini-2.5-pro"
 ]
 
 
@@ -78,7 +80,7 @@ def _clean_and_parse_json(text_out: str) -> dict:
             raise
 
 
-def extract_with_gemini_vision(img: np.ndarray, return_metadata: bool = False) -> Any:
+def extract_with_gemini_vision(img: Any, return_metadata: bool = False) -> Any:
     """
     Extracts tables, marksheets, forms, or data lists from an image using
     Google Gemini Multimodal Vision AI. Returns structured section dicts
@@ -89,7 +91,20 @@ def extract_with_gemini_vision(img: np.ndarray, return_metadata: bool = False) -
         logger.warning("[Gemini Vision] No GEMINI_API_KEY found — skipping Vision AI")
         return None
 
-    if img is None or img.size == 0:
+    if isinstance(img, str):
+        if img.startswith("data:image"):
+            img = img.split(",", 1)[1]
+        try:
+            img_bytes = base64.b64decode(img)
+            nparr = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        except Exception:
+            if os.path.exists(img):
+                img = cv2.imread(img)
+            else:
+                return None
+
+    if img is None or not hasattr(img, 'size') or img.size == 0:
         return None
 
     # Step 1: Resize image to max 1600px dimension for ultra-fast, lightweight upload

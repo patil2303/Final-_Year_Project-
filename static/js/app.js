@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnManualCrop = document.getElementById('btnManualCrop');
     const btnClearCrop = document.getElementById('btnClearCrop');
 
-    const previewCard = document.getElementById('previewCard');
+    const pageCropPreviewCard = document.getElementById('pageCropPreviewCard');
     const cropBadge = document.getElementById('cropBadge');
     const cropStage = document.getElementById('cropStage');
     const previewImage = document.getElementById('previewImage');
@@ -220,12 +220,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // ------------------------------------------------------------------
     // 3. File Upload & Setup (Mobile Camera & Desktop)
     // ------------------------------------------------------------------
-    const pageCropPreviewCard = document.getElementById('pageCropPreviewCard');
-    const previewImage = document.getElementById('previewImage');
-    const cropStage = document.getElementById('cropStage');
-    const cropBox = document.getElementById('cropBox');
-    const cropBadge = document.getElementById('cropBadge');
-
     let stageRect = { width: 1, height: 1 };
     let cropPos = { left: 0, top: 0, width: 0, height: 0 };
     let isDragging = false;
