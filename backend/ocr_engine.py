@@ -7,15 +7,17 @@ from typing import List, Dict, Any, Optional, Tuple
 #  MNIST CNN Classifier Integration
 #  The CNN runs first on each single-digit cell crop.
 #  EasyOCR is used as a fallback when CNN confidence is low.
-# ---------------------------------------------------------------------------
-try:
-    from backend.mnist_classifier import classify_digit as _cnn_classify
-    from backend.mnist_classifier import classify_digit_tta as _cnn_classify_tta
-    _CNN_AVAILABLE = True
-except ImportError:
-    _cnn_classify = None
-    _cnn_classify_tta = None
-    _CNN_AVAILABLE = False
+_CNN_FUNCS = None
+
+def _get_cnn_classifier():
+    global _CNN_FUNCS
+    if _CNN_FUNCS is None:
+        try:
+            from backend.mnist_classifier import classify_digit, classify_digit_tta
+            _CNN_FUNCS = (classify_digit, classify_digit_tta)
+        except Exception:
+            _CNN_FUNCS = (None, None)
+    return _CNN_FUNCS
 
 # CNN confidence threshold: above this, accept CNN result immediately.
 # Below this, run TTA (test-time augmentation) for a more robust vote.
@@ -514,9 +516,10 @@ def _ocr_single_cell_crop(img: np.ndarray, box: Dict[str, int], reader: easyocr.
     # ------------------------------------------------------------------
     # Step 2: MNIST CNN classifier for single handwritten digits (0-9)
     # ------------------------------------------------------------------
-    if _CNN_AVAILABLE and _cnn_classify is not None:
+    classify_fn, tta_fn = _get_cnn_classifier()
+    if classify_fn is not None:
         try:
-            cnn_digit, cnn_conf = _cnn_classify(crop_clean)
+            cnn_digit, cnn_conf = classify_fn(crop_clean)
 
             if cnn_digit:
                 if cnn_conf >= _CNN_CONFIDENCE_THRESHOLD:
@@ -524,8 +527,8 @@ def _ocr_single_cell_crop(img: np.ndarray, box: Dict[str, int], reader: easyocr.
                     return cnn_digit
 
                 # 5-crop TTA majority voting
-                if _cnn_classify_tta is not None:
-                    tta_digit, tta_conf = _cnn_classify_tta(crop_clean, num_crops=5)
+                if tta_fn is not None:
+                    tta_digit, tta_conf = tta_fn(crop_clean, num_crops=5)
                     if tta_digit:
                         print(f"[MNIST-TTA] digit={tta_digit} confidence={tta_conf:.3f} (TTA accepted)")
                         return tta_digit
