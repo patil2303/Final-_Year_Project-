@@ -726,6 +726,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    function cleanNumericRollNo(val) {
+        if (!val) return '';
+        const s = String(val).trim();
+        // E.g. "44 / SE", "44/SE", "44-SE" -> "44"
+        const m1 = s.match(/^\s*(\d+)\s*[/_-]/);
+        if (m1) return m1[1];
+        // E.g. "SE-46", "SE/46", "B-63" -> "46", "63"
+        const m2 = s.match(/^[A-Za-z\s/_-]+(\d+)\s*$/);
+        if (m2) return m2[1];
+        // Standalone number
+        const m3 = s.match(/\b\d+\b/);
+        if (m3) return m3[0];
+        return s;
+    }
+
     function renderStudentMetadata(meta) {
         const metaStudentName = document.getElementById('metaStudentName');
         const metaPRN = document.getElementById('metaPRN');
@@ -748,7 +763,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const name = meta.student_name || meta.name || '';
         const prn = meta.prn || '';
-        const rollNo = meta.roll_no || meta.roll_number || meta.rollno || '';
+        const rawRoll = meta.roll_no || meta.roll_number || meta.rollno || '';
+        const rollNo = cleanNumericRollNo(rawRoll) || rawRoll;
         const branch = meta.branch || '';
         const div = meta.division || '';
         const sem = meta.semester || '';
@@ -772,10 +788,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const metaSemester = document.getElementById('metaSemester');
         const metaSubject = document.getElementById('metaSubject');
 
+        const rawRoll = metaRollNo ? metaRollNo.value.trim() : '';
+        const cleanRoll = cleanNumericRollNo(rawRoll) || rawRoll;
+
         return {
             student_name: metaStudentName ? metaStudentName.value.trim() : '',
             prn: metaPRN ? metaPRN.value.trim() : '',
-            roll_no: metaRollNo ? metaRollNo.value.trim() : '',
+            roll_no: cleanRoll,
             branch: metaBranch ? metaBranch.value.trim() : '',
             division: metaDivision ? metaDivision.value.trim() : '',
             semester: metaSemester ? metaSemester.value.trim() : '',
@@ -1053,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
                 <tr>
                     <td><strong>${idx + 1}</strong></td>
-                    <td><span style="font-weight:700; color:#1E40AF;">${s.roll_no || '-'}</span></td>
+                    <td><span style="font-weight:700; color:#1E40AF;">${cleanNumericRollNo(s.roll_no) || s.roll_no || '-'}</span></td>
                     <td><span style="font-family:var(--font-code); font-size:0.82rem;">${s.prn || '-'}</span></td>
                     <td><strong>${s.student_name || '-'}</strong></td>
                     <td>${marks['1a'] || ''}</td>

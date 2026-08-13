@@ -424,7 +424,7 @@ def detect_grid_cell_boxes(img: np.ndarray) -> List[List[Dict[str, Any]]]:
 #  Single-Cell Crop OCR Processing
 # ---------------------------------------------------------------------------
 
-def _ocr_single_cell_crop(img: np.ndarray, box: Dict[str, int], reader: easyocr.Reader) -> str:
+def _ocr_single_cell_crop(img: np.ndarray, box: Dict[str, int], reader: Any) -> str:
     """
     Recognizes text or digits inside a grid cell crop.
 
@@ -542,7 +542,7 @@ def _ocr_single_cell_crop(img: np.ndarray, box: Dict[str, int], reader: easyocr.
     return ""
 
 
-def _ocr_row_strip(img: np.ndarray, row_boxes: List[Dict[str, int]], reader: easyocr.Reader) -> Dict[int, str]:
+def _ocr_row_strip(img: np.ndarray, row_boxes: List[Dict[str, int]], reader: Any) -> Dict[int, str]:
     """
     Runs EasyOCR across an ENTIRE row strip (all columns in a row simultaneously).
     This preserves spatial line context and easily reads headers ('1a', '1b', 'Total'),

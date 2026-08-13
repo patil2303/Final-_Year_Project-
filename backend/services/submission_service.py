@@ -18,8 +18,9 @@ def parse_numeric_roll(roll_str: Optional[str]) -> int:
     """
     Extracts the pure integer portion from composite roll numbers for natural sorting.
     Examples:
-      'SE-46' -> 46
       '44 / SE' -> 44
+      '44/SE' -> 44
+      'SE-46' -> 46
       'B-63' -> 63
       '12' -> 12
       'Roll 5' -> 5
@@ -27,7 +28,15 @@ def parse_numeric_roll(roll_str: Optional[str]) -> int:
     if not roll_str:
         return 999999
     
-    # Match all digit sequences
+    # 1. Match leading digits if followed by slash or separator (e.g. "44/SE", "44 / SE")
+    lead_match = re.match(r'^\s*(\d+)\s*[/_-]', str(roll_str))
+    if lead_match:
+        try:
+            return int(lead_match.group(1))
+        except ValueError:
+            pass
+
+    # 2. Match all standalone digit sequences
     digits = re.findall(r'\b\d+\b', str(roll_str))
     if digits:
         try:
@@ -35,7 +44,7 @@ def parse_numeric_roll(roll_str: Optional[str]) -> int:
         except ValueError:
             pass
             
-    # Fallback to any consecutive digits
+    # 3. Fallback to any consecutive digits
     any_digits = re.findall(r'\d+', str(roll_str))
     if any_digits:
         try:
@@ -44,6 +53,20 @@ def parse_numeric_roll(roll_str: Optional[str]) -> int:
             pass
             
     return 999999
+
+
+def clean_roll_number(roll_str: Optional[str]) -> str:
+    """
+    Extracts and standardizes the clean numeric roll number from composite values.
+    E.g. '44 / SE' -> '44', '44/SE' -> '44', 'SE-46' -> '46', 'B-63' -> '63'.
+    """
+    if not roll_str:
+        return ""
+    num = parse_numeric_roll(roll_str)
+    if num != 999999:
+        return str(num)
+    return str(roll_str).strip()
+
 
 
 def parse_mark_float(val: Any) -> float:
@@ -249,7 +272,15 @@ def get_classroom_submissions(classroom_id: str) -> List[Dict[str, Any]]:
         ("prn", 1),
         ("student_name", 1)
     ])
-    return list(cursor)
+    subs = list(cursor)
+    # Secondary in-memory sort guarantee using parse_numeric_roll
+    subs.sort(key=lambda s: (
+        s.get("roll_numeric") if s.get("roll_numeric") is not None and s.get("roll_numeric") != 999999
+        else parse_numeric_roll(s.get("roll_no")),
+        str(s.get("prn", "")),
+        str(s.get("student_name", ""))
+    ))
+    return subs
 
 
 # ==============================================================================

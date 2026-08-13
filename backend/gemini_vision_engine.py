@@ -152,7 +152,7 @@ Return ONLY valid JSON matching this schema:
   "metadata": {
     "student_name": "Full student name (e.g. SURNAME FIRST_NAME MIDDLE_NAME)",
     "prn": "Exact PRN number from digit boxes",
-    "roll_no": "Roll number string or ''",
+    "roll_no": "Pure integer roll number digits only (e.g. if the paper says '44 / SE' or 'SE-46' or 'B-63', extract '44', '46', '63'). Do not include year prefixes like SE/TE or slashes",
     "branch": "Branch string or ''",
     "division": "Division string or ''",
     "semester": "Semester string or ''",
@@ -211,6 +211,10 @@ Return ONLY valid JSON matching this schema:
                 raw_sections = parsed.get("sections", [])
                 metadata = parsed.get("metadata", {})
                 
+                if metadata and "roll_no" in metadata:
+                    from backend.services.submission_service import clean_roll_number
+                    metadata["roll_no"] = clean_roll_number(metadata["roll_no"])
+
                 if not raw_sections and not metadata:
                     continue
 
