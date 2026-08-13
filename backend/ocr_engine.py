@@ -1,7 +1,6 @@
 import re
 import cv2
 import numpy as np
-import easyocr
 from typing import List, Dict, Any, Optional, Tuple
 
 # ---------------------------------------------------------------------------
@@ -31,14 +30,19 @@ _CNN_TTA_THRESHOLD = 0.30
 _MAX_GRID_ROWS = 20
 _MAX_GRID_COLS = 20
 
-_EASYOCR_READER: Optional[easyocr.Reader] = None
+_EASYOCR_READER = None
 
-def get_ocr_reader() -> easyocr.Reader:
-    """Returns or initializes singleton EasyOCR Reader."""
+def get_ocr_reader():
+    """Returns or initializes singleton EasyOCR Reader lazily on demand."""
     global _EASYOCR_READER
     if _EASYOCR_READER is None:
-        print("[OCR] Initializing EasyOCR Reader (English)...")
-        _EASYOCR_READER = easyocr.Reader(['en'], gpu=False)
+        try:
+            import easyocr
+            print("[OCR] Initializing EasyOCR Reader (English)...")
+            _EASYOCR_READER = easyocr.Reader(['en'], gpu=False)
+        except Exception as e:
+            print(f"[OCR] EasyOCR init skipped/failed: {e}")
+            return None
     return _EASYOCR_READER
 
 def clean_and_normalize_ocr_text(raw_text: str) -> Dict[str, Any]:

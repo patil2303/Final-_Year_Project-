@@ -470,35 +470,103 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    function compressImageForUpload(file, maxDimension = 1600, quality = 0.85) {
+        return new Promise((resolve) => {
+            if (!file || !file.type || !file.type.startsWith('image/')) {
+                return resolve(file); // PDFs or other non-image files are passed directly
+            }
+
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                let w = img.width;
+                let h = img.height;
+
+                if (w <= maxDimension && h <= maxDimension && file.size < 800 * 1024) {
+                    return resolve(file);
+                }
+
+                if (w > maxDimension || h > maxDimension) {
+                    if (w > h) {
+                        h = Math.round((h * maxDimension) / w);
+                        w = maxDimension;
+                    } else {
+                        w = Math.round((w * maxDimension) / h);
+                        h = maxDimension;
+                    }
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+
+                canvas.toBlob(
+                    (blob) => {
+                        if (blob) {
+                            const newName = (file.name || 'photo').replace(/\.[^/.]+$/, '') + '.jpg';
+                            const compressed = new File([blob], newName, {
+                                type: 'image/jpeg',
+                                lastModified: Date.now()
+                            });
+                            resolve(compressed);
+                        } else {
+                            resolve(file);
+                        }
+                    },
+                    'image/jpeg',
+                    quality
+                );
+            };
+            img.onerror = () => resolve(file);
+            img.src = url;
+        });
+    }
+
+    async function safeFetchJson(url, options = {}) {
+        let res;
+        try {
+            res = await fetch(url, options);
+        } catch (netErr) {
+            throw new Error('Network request failed. If the Render instance is spinning up, please wait 5 seconds and retry.');
+        }
+
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            const rawText = await res.text();
+            if (res.status === 502 || res.status === 503 || res.status === 504) {
+                throw new Error('Cloud server is waking up from idle. Please wait 5-10 seconds and try again.');
+            }
+            if (res.status === 413) {
+                throw new Error('Uploaded file is too large. Please select a smaller photo or PDF.');
+            }
+            throw new Error(`Server returned HTTP ${res.status}: ${rawText.substring(0, 100)}`);
+        }
+
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.detail || `Request failed with status ${res.status}`);
+        }
+        return data;
+    }
+
     async function uploadFile(file) {
         if (!file) return;
 
-        showLoading('Uploading & Preparing File...', 'Processing document format...');
-
-        const formData = new FormData();
-        formData.append('file', file);
+        showLoading('Uploading & Preparing File...', 'Optimizing document for instant extraction...');
 
         try {
-            const res = await fetch('/api/upload', {
+            const optimizedFile = await compressImageForUpload(file);
+            const formData = new FormData();
+            formData.append('file', optimizedFile);
+
+            const data = await safeFetchJson('/api/upload', {
                 method: 'POST',
                 body: formData
             });
 
-            if (!res.ok) {
-                hideLoading();
-                let errMsg = `Server returned status ${res.status}`;
-                try {
-                    const errJson = await res.json();
-                    errMsg = errJson.detail || errMsg;
-                } catch {
-                    const text = await res.text();
-                    if (text) errMsg = text;
-                }
-                alert(`Upload failed: ${errMsg}`);
-                return;
-            }
-
-            const data = await res.json();
             hideLoading();
 
             if (data.status === 'success') {
@@ -539,7 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 btnConvert.disabled = false;
             } else {
-                alert(`Upload Error: ${data.detail}`);
+                alert(`Upload Error: ${data.detail || 'Could not process file'}`);
             }
         } catch (err) {
             hideLoading();
@@ -623,13 +691,12 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            const res = await fetch('/api/extract', {
+            const data = await safeFetchJson('/api/extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
-            const data = await res.json();
             hideLoading();
 
             if (data.status === 'success') {
@@ -651,7 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 resultCard.style.display = 'block';
                 resultCard.scrollIntoView({ behavior: 'smooth' });
             } else {
-                alert(`Extraction error: ${data.detail}`);
+                alert(`Extraction error: ${data.detail || 'Failed to extract'}`);
             }
         } catch (err) {
             hideLoading();
@@ -761,7 +828,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoading('Submitting to Classroom Database', 'Syncing marksheet with MongoDB Atlas...');
 
         try {
-            const res = await fetch('/api/submissions', {
+            const data = await safeFetchJson('/api/submissions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -772,7 +839,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
             });
 
-            const data = await res.json();
             hideLoading();
 
             if (data.status === 'success') {
@@ -781,7 +847,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     `${currentMeta.student_name} (Roll: ${currentMeta.roll_no}) was stored in MongoDB Atlas.`
                 );
             } else {
-                alert(`Submission error: ${data.detail}`);
+                alert(`Submission error: ${data.detail || 'Could not save marksheet'}`);
             }
         } catch (err) {
             hideLoading();
