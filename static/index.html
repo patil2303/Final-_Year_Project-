@@ -14,7 +14,7 @@
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="css/style.css?v=3.8">
+    <link rel="stylesheet" href="css/style.css?v=3.9">
 </head>
 
 <body>
@@ -53,11 +53,23 @@
 
                 <!-- Classroom Assignment Banner (Student Read-Only Access) -->
                 <div class="classroom-select-banner">
-                    <div class="classroom-banner-info" style="width: 100%;">
+                    <div class="classroom-banner-info" style="width: 100%; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                         <label for="studentClassroomSelect"><i class="fa-solid fa-school"></i> Select Active Classroom / Exam Session:</label>
                         <select id="studentClassroomSelect" class="classroom-dropdown" style="flex: 1; max-width: 420px;">
                             <!-- Populated dynamically via /api/classrooms created by Faculty -->
                         </select>
+                        <div id="studentSubmissionStatusBadge" class="submission-status-badge status-open">
+                            <i class="fa-solid fa-circle-check"></i> Submissions Open
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submission Lock Warning Banner (Shown when locked by Faculty) -->
+                <div id="studentSubmissionLockBanner" class="submission-lock-banner" style="display: none;">
+                    <i class="fa-solid fa-lock"></i>
+                    <div>
+                        <strong>Submission Window Locked by Faculty</strong>
+                        <p>Your instructor has closed submissions for this exam session. Uploading and submitting answer sheets is currently disabled.</p>
                     </div>
                 </div>
 
@@ -313,9 +325,22 @@
 
                     <!-- Classroom Selector & Master Export Action Strip -->
                     <div class="faculty-class-strip">
-                        <div class="faculty-select-box">
-                            <label for="facultyClassroomSelect"><i class="fa-solid fa-filter"></i> Select Classroom Batch:</label>
-                            <select id="facultyClassroomSelect" class="classroom-dropdown"></select>
+                        <div class="faculty-select-box" style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <label for="facultyClassroomSelect"><i class="fa-solid fa-filter"></i> Select Classroom Batch:</label>
+                                <select id="facultyClassroomSelect" class="classroom-dropdown"></select>
+                            </div>
+
+                            <!-- Lock / Unlock Submission Toggle -->
+                            <div class="faculty-toggle-box">
+                                <label class="switch-toggle-label" title="Enable or disable student uploads for this classroom">
+                                    <input type="checkbox" id="facultySubmissionToggle" checked>
+                                    <span class="slider-toggle"></span>
+                                </label>
+                                <span id="facultySubmissionStatusLabel" class="faculty-toggle-status status-open">
+                                    <i class="fa-solid fa-lock-open"></i> Submissions OPEN
+                                </span>
+                            </div>
                         </div>
                         <div class="master-export-btns">
                             <button class="btn btn-success btn-lg" id="btnFacultyExportExcel">
@@ -497,8 +522,8 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/spreadsheet_editor.js?v=3.8"></script>
-    <script src="js/app.js?v=3.8"></script>
+    <script src="js/spreadsheet_editor.js?v=3.9"></script>
+    <script src="js/app.js?v=3.9"></script>
 </body>
 
 </html>

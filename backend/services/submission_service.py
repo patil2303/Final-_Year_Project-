@@ -170,18 +170,41 @@ def create_or_get_classroom(
     
     col.update_one(
         {"classroom_id": classroom_id},
-        {"$set": doc, "$setOnInsert": {"created_at": datetime.datetime.now(datetime.timezone.utc)}},
+        {
+            "$set": doc,
+            "$setOnInsert": {
+                "created_at": datetime.datetime.now(datetime.timezone.utc),
+                "is_submission_open": True
+            }
+        },
         upsert=True
     )
     
-    return col.find_one({"classroom_id": classroom_id}, {"_id": 0})
+    cls = col.find_one({"classroom_id": classroom_id}, {"_id": 0})
+    if cls and "is_submission_open" not in cls:
+        cls["is_submission_open"] = True
+    return cls
+
+
+def toggle_classroom_submission_status(classroom_id: str, is_open: bool) -> bool:
+    """Updates the submission open/closed toggle state for a classroom in MongoDB Atlas."""
+    col = get_classrooms_collection()
+    res = col.update_one(
+        {"classroom_id": classroom_id},
+        {"$set": {"is_submission_open": bool(is_open), "updated_at": datetime.datetime.now(datetime.timezone.utc)}}
+    )
+    return res.matched_count > 0 or res.modified_count > 0
 
 
 def list_classrooms() -> List[Dict[str, Any]]:
     """Returns all registered classrooms sorted by creation time."""
     col = get_classrooms_collection()
     cursor = col.find({}, {"_id": 0}).sort("created_at", -1)
-    return list(cursor)
+    classrooms = list(cursor)
+    for c in classrooms:
+        if "is_submission_open" not in c:
+            c["is_submission_open"] = True
+    return classrooms
 
 
 # ==============================================================================
@@ -199,6 +222,12 @@ def save_or_update_submission(
     Uses smart upsert on (classroom_id, prn) or (classroom_id, roll_no)
     so re-submissions update existing rows cleanly without duplicating.
     """
+    # Security check: verify if submission window is open for this classroom
+    classrooms_col = get_classrooms_collection()
+    cls_doc = classrooms_col.find_one({"classroom_id": classroom_id})
+    if cls_doc and not cls_doc.get("is_submission_open", True):
+        raise PermissionError("Submissions for this exam session are currently closed by the faculty.")
+
     col = get_submissions_collection()
     
     prn = str(student_metadata.get("prn", "")).strip()

@@ -1823,4 +1823,129 @@ body {
     .faculty-stats-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* ==========================================================================
+   FACULTY SUBMISSION LOCK & TOGGLE STYLES
+   ========================================================================== */
+.submission-status-badge {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.submission-status-badge.status-open {
+    background: #DCFCE7;
+    color: #15803D;
+    border: 1px solid #BBF7D0;
+}
+
+.submission-status-badge.status-closed {
+    background: #FEE2E2;
+    color: #B91C1C;
+    border: 1px solid #FECACA;
+}
+
+.submission-lock-banner {
+    background: #FEF2F2;
+    border: 1.5px solid #FCA5A5;
+    color: #991B1B;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.submission-lock-banner i {
+    font-size: 1.6rem;
+    color: #DC2626;
+    flex-shrink: 0;
+}
+
+.submission-lock-banner strong {
+    font-size: 1rem;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.submission-lock-banner p {
+    font-size: 0.85rem;
+    margin: 0;
+    color: #B91C1C;
+}
+
+.faculty-toggle-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    padding: 6px 14px;
+    border-radius: 10px;
+}
+
+.switch-toggle-label {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.switch-toggle-label input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider-toggle {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #CBD5E1;
+    transition: .3s;
+    border-radius: 24px;
+}
+
+.slider-toggle:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+input:checked + .slider-toggle {
+    background-color: #16A34A;
+}
+
+input:checked + .slider-toggle:before {
+    transform: translateX(20px);
+}
+
+.faculty-toggle-status {
+    font-size: 0.85rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.faculty-toggle-status.status-open {
+    color: #15803D;
+}
+
+.faculty-toggle-status.status-closed {
+    color: #DC2626;
 }

@@ -515,6 +515,10 @@ class ClassroomCreateRequest(BaseModel):
     exam_name: Optional[str] = "IA-1"
     max_marks_config: Optional[Dict[str, Any]] = None
 
+class ToggleSubmissionRequest(BaseModel):
+    classroom_id: str
+    is_submission_open: bool
+
 class StudentSubmissionRequest(BaseModel):
     classroom_id: str
     student_metadata: Dict[str, Any]
@@ -554,6 +558,26 @@ def list_classrooms_endpoint():
         raise HTTPException(status_code=500, detail=f"Failed to list classrooms: {str(e)}")
 
 
+@app.post("/api/classrooms/toggle-submission")
+def toggle_classroom_submission_endpoint(req: ToggleSubmissionRequest):
+    """Updates the open/closed submission state for a classroom."""
+    try:
+        from backend.services.submission_service import toggle_classroom_submission_status
+        success = toggle_classroom_submission_status(req.classroom_id, req.is_submission_open)
+        if not success:
+            raise HTTPException(status_code=404, detail="Classroom not found")
+        return {
+            "status": "success",
+            "classroom_id": req.classroom_id,
+            "is_submission_open": req.is_submission_open
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Toggle submission status failed")
+        raise HTTPException(status_code=500, detail=f"Failed to update submission status: {str(e)}")
+
+
 @app.post("/api/submissions")
 def save_student_submission_endpoint(req: StudentSubmissionRequest):
     """
@@ -569,6 +593,8 @@ def save_student_submission_endpoint(req: StudentSubmissionRequest):
             raw_image_url=None
         )
         return {"status": "success", "submission": saved}
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
     except Exception as e:
         logger.exception("Student submission save failed")
         raise HTTPException(status_code=500, detail=f"Failed to save submission: {str(e)}")

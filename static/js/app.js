@@ -62,6 +62,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Faculty View Elements
     const facultyClassroomSelect = document.getElementById('facultyClassroomSelect');
+    const facultySubmissionToggle = document.getElementById('facultySubmissionToggle');
+    const facultySubmissionStatusLabel = document.getElementById('facultySubmissionStatusLabel');
+    const studentSubmissionStatusBadge = document.getElementById('studentSubmissionStatusBadge');
+    const studentSubmissionLockBanner = document.getElementById('studentSubmissionLockBanner');
     const btnOpenCreateClassModal = document.getElementById('btnOpenCreateClassModal');
     const btnRefreshFacultyRoster = document.getElementById('btnRefreshFacultyRoster');
     const btnFacultyExportExcel = document.getElementById('btnFacultyExportExcel');
@@ -132,6 +136,57 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateStudentLockState(classroomId) {
+        if (!classroomId || !activeClassroomsList || activeClassroomsList.length === 0) return;
+        const cls = activeClassroomsList.find(c => c.classroom_id === classroomId);
+        const isOpen = cls ? (cls.is_submission_open !== false) : true;
+
+        if (isOpen) {
+            if (studentSubmissionStatusBadge) {
+                studentSubmissionStatusBadge.className = 'submission-status-badge status-open';
+                studentSubmissionStatusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> Submissions Open';
+            }
+            if (studentSubmissionLockBanner) studentSubmissionLockBanner.style.display = 'none';
+
+            if (dropZone) dropZone.style.pointerEvents = 'auto';
+            if (dropZone) dropZone.style.opacity = '1';
+            if (btnSnapCamera) btnSnapCamera.disabled = false;
+            if (btnChooseFile) btnChooseFile.disabled = false;
+            if (btnSubmitToDb) btnSubmitToDb.disabled = false;
+        } else {
+            if (studentSubmissionStatusBadge) {
+                studentSubmissionStatusBadge.className = 'submission-status-badge status-closed';
+                studentSubmissionStatusBadge.innerHTML = '<i class="fa-solid fa-lock"></i> Submissions Locked';
+            }
+            if (studentSubmissionLockBanner) studentSubmissionLockBanner.style.display = 'flex';
+
+            if (dropZone) dropZone.style.pointerEvents = 'none';
+            if (dropZone) dropZone.style.opacity = '0.5';
+            if (btnSnapCamera) btnSnapCamera.disabled = true;
+            if (btnChooseFile) btnChooseFile.disabled = true;
+            if (btnSubmitToDb) btnSubmitToDb.disabled = true;
+        }
+    }
+
+    function updateFacultyToggleState(classroomId) {
+        if (!classroomId || !activeClassroomsList || activeClassroomsList.length === 0) return;
+        const cls = activeClassroomsList.find(c => c.classroom_id === classroomId);
+        const isOpen = cls ? (cls.is_submission_open !== false) : true;
+
+        if (facultySubmissionToggle) {
+            facultySubmissionToggle.checked = isOpen;
+        }
+        if (facultySubmissionStatusLabel) {
+            if (isOpen) {
+                facultySubmissionStatusLabel.className = 'faculty-toggle-status status-open';
+                facultySubmissionStatusLabel.innerHTML = '<i class="fa-solid fa-lock-open"></i> Submissions OPEN';
+            } else {
+                facultySubmissionStatusLabel.className = 'faculty-toggle-status status-closed';
+                facultySubmissionStatusLabel.innerHTML = '<i class="fa-solid fa-lock"></i> Submissions LOCKED';
+            }
+        }
+    }
+
     function populateClassroomDropdowns(selectedId = null) {
         if (!activeClassroomsList || activeClassroomsList.length === 0) {
             const studentEmptyOpt = '<option value="">-- No Active Classes (Please wait for faculty) --</option>';
@@ -145,7 +200,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const facultyOpts = [];
 
         activeClassroomsList.forEach(cls => {
-            const label = `${cls.year} ${cls.branch} (Div ${cls.division}) • ${cls.subject} (Sem ${cls.semester}) • ${cls.exam_name || 'IA-1'}`;
+            const statusTag = cls.is_submission_open === false ? ' [LOCKED]' : '';
+            const label = `${cls.year} ${cls.branch} (Div ${cls.division}) • ${cls.subject} (Sem ${cls.semester}) • ${cls.exam_name || 'IA-1'}${statusTag}`;
             studentOpts.push(`<option value="${cls.classroom_id}">${label}</option>`);
             facultyOpts.push(`<option value="${cls.classroom_id}">${label}</option>`);
         });
@@ -157,6 +213,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (studentClassroomSelect) studentClassroomSelect.value = selectedId;
             if (facultyClassroomSelect) facultyClassroomSelect.value = selectedId;
         }
+
+        const activeStudentId = studentClassroomSelect ? studentClassroomSelect.value : null;
+        const activeFacultyId = facultyClassroomSelect ? facultyClassroomSelect.value : null;
+        updateStudentLockState(activeStudentId);
+        updateFacultyToggleState(activeFacultyId);
     }
 
     // Modal Open/Close Controls (Faculty Only)
@@ -1114,8 +1175,54 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (studentClassroomSelect) {
+        studentClassroomSelect.addEventListener('change', () => {
+            updateStudentLockState(studentClassroomSelect.value);
+        });
+    }
+
     if (facultyClassroomSelect) {
-        facultyClassroomSelect.addEventListener('change', () => loadFacultyRoster());
+        facultyClassroomSelect.addEventListener('change', () => {
+            updateFacultyToggleState(facultyClassroomSelect.value);
+            loadFacultyRoster();
+        });
+    }
+
+    if (facultySubmissionToggle) {
+        facultySubmissionToggle.addEventListener('change', async (e) => {
+            const classroomId = facultyClassroomSelect ? facultyClassroomSelect.value : null;
+            if (!classroomId) return;
+            const newStatus = e.target.checked;
+
+            try {
+                const res = await fetch('/api/classrooms/toggle-submission', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        classroom_id: classroomId,
+                        is_submission_open: newStatus
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    const cls = activeClassroomsList.find(c => c.classroom_id === classroomId);
+                    if (cls) cls.is_submission_open = newStatus;
+
+                    updateFacultyToggleState(classroomId);
+                    updateStudentLockState(studentClassroomSelect ? studentClassroomSelect.value : null);
+
+                    const toastTitle = newStatus ? 'Submissions Opened' : 'Submissions Locked';
+                    const toastMsg = newStatus ? 'Students can now upload answer sheets to this batch.' : 'Student uploads locked for this batch.';
+                    showToast(toastTitle, toastMsg);
+                } else {
+                    e.target.checked = !newStatus;
+                    alert(`Failed to change status: ${data.detail}`);
+                }
+            } catch (err) {
+                e.target.checked = !newStatus;
+                alert(`Error toggling status: ${err.message}`);
+            }
+        });
     }
 
     if (btnRefreshFacultyRoster) {
