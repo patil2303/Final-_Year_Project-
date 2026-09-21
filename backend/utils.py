@@ -82,13 +82,20 @@ def base64_to_cv2(b64_string: str) -> np.ndarray:
     imgs = universal_file_to_cv2_images(img_bytes)
     return imgs[0] if imgs else None
 
-def cv2_to_base64(img: np.ndarray, format: str = "PNG") -> str:
-    """Encodes an OpenCV image array to a data URL base64 string."""
-    success, buffer = cv2.imencode(f".{format.lower()}", img)
+def cv2_to_base64(img: np.ndarray, format: str = "JPEG") -> str:
+    """Encodes an OpenCV image array to an optimized data URL base64 string (JPEG quality 85)."""
+    if format.upper() == "JPEG" or format.upper() == "JPG":
+        encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), 85]
+        success, buffer = cv2.imencode(".jpg", img, encode_params)
+        mime = "image/jpeg"
+    else:
+        success, buffer = cv2.imencode(f".{format.lower()}", img)
+        mime = f"image/{format.lower()}"
+        
     if not success or buffer is None:
-        raise ValueError(f"cv2.imencode failed for format '.{format.lower()}' — image may be empty or corrupted")
+        raise ValueError(f"cv2.imencode failed for format '{format}'")
     b64_bytes = base64.b64encode(buffer)
-    return f"data:image/{format.lower()};base64,{b64_bytes.decode('utf-8')}"
+    return f"data:{mime};base64,{b64_bytes.decode('utf-8')}"
 
 def bytes_to_cv2(img_bytes: bytes, filename: str = "") -> np.ndarray:
     """Decodes raw byte array to an OpenCV image array."""

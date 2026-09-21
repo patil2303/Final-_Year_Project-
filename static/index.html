@@ -14,7 +14,7 @@
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="css/style.css?v=3.9">
+    <link rel="stylesheet" href="css/style.css?v=4.1">
 </head>
 
 <body>
@@ -316,7 +316,10 @@
                             <h3><i class="fa-solid fa-chalkboard-user"></i> Faculty Master Management Dashboard</h3>
                             <p>Monitor live student submissions in MongoDB, audit marks, and export consolidated Master Excel</p>
                         </div>
-                        <div class="faculty-action-group">
+                        <div class="faculty-action-group" style="display: flex; gap: 10px; align-items: center;">
+                            <button class="btn btn-outline" id="btnLockFacultySession" title="Lock Faculty Dashboard">
+                                <i class="fa-solid fa-lock"></i> Lock Session
+                            </button>
                             <button class="btn btn-primary btn-lg" id="btnOpenCreateClassModal">
                                 <i class="fa-solid fa-circle-plus"></i> Create New Class / Exam
                             </button>
@@ -441,6 +444,44 @@
     <!-- 3. MODALS & NOTIFICATIONS -->
     <!-- ================================================================= -->
 
+    <!-- Faculty Security Passcode Modal -->
+    <div class="modal-overlay" id="modalFacultyAuth" style="display: none;">
+        <div class="modal-card" style="max-width: 440px; padding: 28px 24px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+            
+            <!-- Lock Icon Header -->
+            <div style="width: 56px; height: 56px; background: #EEF2FF; color: #4338CA; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px;">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+
+            <!-- Title & Subtitle -->
+            <h3 style="font-size: 1.35rem; font-weight: 800; color: #0F172A; margin: 0 0 6px 0;">Faculty Dashboard Access</h3>
+            <p style="font-size: 0.88rem; color: #64748B; margin: 0 0 24px 0; line-height: 1.4;">Enter Faculty Passcode to view student marksheets and manage classrooms.</p>
+            
+            <!-- Passcode Form -->
+            <form id="formFacultyAuth" style="width: 100%; display: flex; flex-direction: column; gap: 20px;">
+                <div class="form-group" style="width: 100%; text-align: left;">
+                    <label for="facultyPasscodeInput" style="font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Faculty Security Passcode</label>
+                    
+                    <div style="position: relative; width: 100%;">
+                        <input type="password" id="facultyPasscodeInput" class="form-input" placeholder="Enter password" required style="width: 100%; padding: 12px 42px 12px 14px; box-sizing: border-box; font-size: 0.95rem; border-radius: 10px; border: 1.5px solid #CBD5E1;" />
+                        <button type="button" id="btnTogglePasscodeVisibility" style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: #64748B; cursor: pointer; padding: 10px 12px; display: flex; align-items: center; justify-content: center;" title="Toggle visibility">
+                            <i class="fa-solid fa-eye" id="iconPasscodeEye" style="font-size: 1.05rem;"></i>
+                        </button>
+                    </div>
+                    
+                    <p id="facultyPasscodeError" style="color: #EF4444; font-size: 0.82rem; margin-top: 8px; margin-bottom: 0; display: none; font-weight: 600;">
+                        <i class="fa-solid fa-circle-exclamation"></i> Incorrect passcode. Access denied.
+                    </p>
+                </div>
+
+                <div style="width: 100%; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
+                    <button type="button" class="btn btn-outline" id="btnCancelFacultyAuth" style="flex: 1; height: 44px; justify-content: center; font-size: 0.9rem; font-weight: 600; border-radius: 10px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="btnUnlockFaculty" style="flex: 1.4; height: 44px; justify-content: center; font-size: 0.9rem; font-weight: 600; border-radius: 10px;"><i class="fa-solid fa-key"></i> Unlock Dashboard</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Create Classroom Modal -->
     <div class="modal-overlay" id="createClassModal" style="display: none;">
         <div class="modal-card">
@@ -522,8 +563,8 @@
     </div>
 
     <!-- Scripts -->
-    <script src="js/spreadsheet_editor.js?v=3.9"></script>
-    <script src="js/app.js?v=3.9"></script>
+    <script src="js/spreadsheet_editor.js?v=4.1"></script>
+    <script src="js/app.js?v=4.1"></script>
 </body>
 
 </html>

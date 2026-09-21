@@ -1,17 +1,44 @@
 import re
 import io
+import json
 import datetime
 import logging
+import urllib.request
 from typing import Dict, Any, List, Optional
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from backend.database.mongo import get_classrooms_collection, get_submissions_collection
+from backend.database.mongo import (
+    get_classrooms_collection,
+    get_submissions_collection,
+    is_live_proxy_active,
+    RENDER_LIVE_BASE_URL
+)
 
 logger = logging.getLogger(__name__)
 
 STANDARD_QUESTION_HEADERS = ["1a", "1b", "1c", "1d", "1e", "1f", "2a", "2b", "3a", "3b"]
+
+
+def _proxy_get(endpoint: str, timeout: int = 15) -> Any:
+    url = f"{RENDER_LIVE_BASE_URL}{endpoint}"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (SmartLocalProxy)"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _proxy_post(endpoint: str, payload: Dict[str, Any], timeout: int = 15) -> Any:
+    url = f"{RENDER_LIVE_BASE_URL}{endpoint}"
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (SmartLocalProxy)"},
+        method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 def parse_numeric_roll(roll_str: Optional[str]) -> int:
@@ -140,6 +167,23 @@ def create_or_get_classroom(
     Registers a new classroom/exam batch or retrieves an existing one.
     Generates a deterministic classroom_id (e.g. 'SE_IT_B_SEM4_CNND_IA1').
     """
+    if is_live_proxy_active():
+        try:
+            payload = {
+                "year": year,
+                "branch": branch,
+                "division": division,
+                "semester": semester,
+                "subject": subject,
+                "exam_name": exam_name or "IA-1",
+                "max_marks_config": max_marks_config
+            }
+            res = _proxy_post("/api/classrooms", payload)
+            return res.get("classroom", {})
+        except Exception as e:
+            logger.error(f"[Proxy] Failed to proxy create_or_get_classroom: {e}")
+            raise
+
     col = get_classrooms_collection()
     
     clean_yr = re.sub(r'[^A-Za-z0-9]', '', year).upper() or "SE"
@@ -188,6 +232,15 @@ def create_or_get_classroom(
 
 def toggle_classroom_submission_status(classroom_id: str, is_open: bool) -> bool:
     """Updates the submission open/closed toggle state for a classroom in MongoDB Atlas."""
+    if is_live_proxy_active():
+        try:
+            payload = {"classroom_id": classroom_id, "is_submission_open": bool(is_open)}
+            res = _proxy_post("/api/classrooms/toggle-submission", payload)
+            return res.get("status") == "success"
+        except Exception as e:
+            logger.error(f"[Proxy] Failed to proxy toggle_classroom_submission_status: {e}")
+            return False
+
     col = get_classrooms_collection()
     res = col.update_one(
         {"classroom_id": classroom_id},
@@ -198,6 +251,14 @@ def toggle_classroom_submission_status(classroom_id: str, is_open: bool) -> bool
 
 def list_classrooms() -> List[Dict[str, Any]]:
     """Returns all registered classrooms sorted by creation time."""
+    if is_live_proxy_active():
+        try:
+            res = _proxy_get("/api/classrooms")
+            return res.get("classrooms", [])
+        except Exception as e:
+            logger.error(f"[Proxy] Failed to proxy list_classrooms: {e}")
+            return []
+
     col = get_classrooms_collection()
     cursor = col.find({}, {"_id": 0}).sort("created_at", -1)
     classrooms = list(cursor)
@@ -222,6 +283,19 @@ def save_or_update_submission(
     Uses smart upsert on (classroom_id, prn) or (classroom_id, roll_no)
     so re-submissions update existing rows cleanly without duplicating.
     """
+    if is_live_proxy_active():
+        try:
+            payload = {
+                "classroom_id": classroom_id,
+                "student_metadata": student_metadata,
+                "marks_data": marks_data
+            }
+            res = _proxy_post("/api/submissions", payload)
+            return res.get("submission", {})
+        except Exception as e:
+            logger.error(f"[Proxy] Failed to proxy save_or_update_submission: {e}")
+            raise
+
     # Security check: verify if submission window is open for this classroom
     classrooms_col = get_classrooms_collection()
     cls_doc = classrooms_col.find_one({"classroom_id": classroom_id})
@@ -295,6 +369,13 @@ def get_classroom_submissions(classroom_id: str) -> List[Dict[str, Any]]:
     Retrieves all student submissions for a classroom, strictly sorted
     by natural numeric Roll Number (ascending: 1, 2, ... 44, 46, 63).
     """
+    if is_live_proxy_active():
+        try:
+            res = _proxy_get(f"/api/submissions/{classroom_id}")
+            return res.get("submissions", [])
+        except Exception as e:
+            logger.error(f"[Proxy] Failed to proxy get_classroom_submissions: {e}")
+            return []
     col = get_submissions_collection()
     cursor = col.find({"classroom_id": classroom_id}, {"_id": 0}).sort([
         ("roll_numeric", 1),
@@ -321,8 +402,12 @@ def generate_master_excel_bytes(classroom_id: str) -> bytes:
     Compiles an openpyxl Master Class Grade Sheet aggregating all students
     in the classroom into one single-file Excel table sorted by Roll No.
     """
-    cls_col = get_classrooms_collection()
-    class_info = cls_col.find_one({"classroom_id": classroom_id}, {"_id": 0}) or {}
+    if is_live_proxy_active():
+        all_classes = list_classrooms()
+        class_info = next((c for c in all_classes if c.get("classroom_id") == classroom_id), {})
+    else:
+        cls_col = get_classrooms_collection()
+        class_info = cls_col.find_one({"classroom_id": classroom_id}, {"_id": 0}) or {}
     
     submissions = get_classroom_submissions(classroom_id)
     

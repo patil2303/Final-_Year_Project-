@@ -95,9 +95,36 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadingTitle = document.getElementById('loadingTitle');
     const loadingMessage = document.getElementById('loadingMessage');
 
+    const FACULTY_PASSCODE = 'faculty@123';
+    const modalFacultyAuth = document.getElementById('modalFacultyAuth');
+    const formFacultyAuth = document.getElementById('formFacultyAuth');
+    const facultyPasscodeInput = document.getElementById('facultyPasscodeInput');
+    const facultyPasscodeError = document.getElementById('facultyPasscodeError');
+    const btnCancelFacultyAuth = document.getElementById('btnCancelFacultyAuth');
+    const btnTogglePasscodeVisibility = document.getElementById('btnTogglePasscodeVisibility');
+    const iconPasscodeEye = document.getElementById('iconPasscodeEye');
+    const btnLockFacultySession = document.getElementById('btnLockFacultySession');
+
     // ------------------------------------------------------------------
-    // 1. Dual Portal Mode Switcher
+    // 1. Dual Portal Mode Switcher & Security Barrier
     // ------------------------------------------------------------------
+    function isFacultyUnlocked() {
+        return sessionStorage.getItem('faculty_unlocked') === 'true';
+    }
+
+    function openFacultyAuthModal() {
+        if (facultyPasscodeInput) facultyPasscodeInput.value = '';
+        if (facultyPasscodeError) facultyPasscodeError.style.display = 'none';
+        if (modalFacultyAuth) modalFacultyAuth.style.display = 'flex';
+        setTimeout(() => {
+            if (facultyPasscodeInput) facultyPasscodeInput.focus();
+        }, 100);
+    }
+
+    function closeFacultyAuthModal() {
+        if (modalFacultyAuth) modalFacultyAuth.style.display = 'none';
+    }
+
     function switchPortal(portal) {
         if (portal === 'student') {
             tabStudentPortal.classList.add('active');
@@ -105,16 +132,66 @@ document.addEventListener('DOMContentLoaded', () => {
             studentPortalView.style.display = 'block';
             facultyPortalView.style.display = 'none';
         } else {
-            tabFacultyPortal.classList.add('active');
-            tabStudentPortal.classList.remove('active');
-            studentPortalView.style.display = 'none';
-            facultyPortalView.style.display = 'block';
-            loadFacultyRoster();
+            if (isFacultyUnlocked()) {
+                tabFacultyPortal.classList.add('active');
+                tabStudentPortal.classList.remove('active');
+                studentPortalView.style.display = 'none';
+                facultyPortalView.style.display = 'block';
+                loadFacultyRoster();
+            } else {
+                openFacultyAuthModal();
+            }
         }
     }
 
     tabStudentPortal.addEventListener('click', () => switchPortal('student'));
     tabFacultyPortal.addEventListener('click', () => switchPortal('faculty'));
+
+    if (formFacultyAuth) {
+        formFacultyAuth.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const val = (facultyPasscodeInput ? facultyPasscodeInput.value : '').trim();
+            if (val === FACULTY_PASSCODE) {
+                sessionStorage.setItem('faculty_unlocked', 'true');
+                closeFacultyAuthModal();
+                switchPortal('faculty');
+                showToast('Faculty Authenticated', 'Faculty Dashboard unlocked successfully.');
+            } else {
+                if (facultyPasscodeError) facultyPasscodeError.style.display = 'block';
+                if (facultyPasscodeInput) {
+                    facultyPasscodeInput.focus();
+                    facultyPasscodeInput.select();
+                }
+            }
+        });
+    }
+
+    if (btnCancelFacultyAuth) {
+        btnCancelFacultyAuth.addEventListener('click', () => {
+            closeFacultyAuthModal();
+            switchPortal('student');
+        });
+    }
+
+    if (btnTogglePasscodeVisibility) {
+        btnTogglePasscodeVisibility.addEventListener('click', () => {
+            if (facultyPasscodeInput) {
+                const isPassword = facultyPasscodeInput.type === 'password';
+                facultyPasscodeInput.type = isPassword ? 'text' : 'password';
+                if (iconPasscodeEye) {
+                    iconPasscodeEye.className = isPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+                }
+            }
+        });
+    }
+
+    if (btnLockFacultySession) {
+        btnLockFacultySession.addEventListener('click', () => {
+            sessionStorage.removeItem('faculty_unlocked');
+            switchPortal('student');
+            showToast('Session Locked', 'Faculty Dashboard has been locked.');
+        });
+    }
 
     // ------------------------------------------------------------------
     // 2. Classroom Management (MongoDB Synced)
