@@ -23,17 +23,14 @@ def _clean_mongodb_uri(uri: str) -> str:
     # Fix missing '?' after database name, e.g. /exam_grading_portalretryWrites=true
     import re
     uri = re.sub(r'(/[^/?]+?)(retryWrites=|authSource=|appName=|w=|tls=)', r'\1?\2', uri)
-    
-    # Ensure authSource=admin is present
-    if "authSource=" not in uri:
-        sep = "&" if "?" in uri else "?"
-        uri = f"{uri}{sep}authSource=admin"
-        
     return uri
 
 
 def is_live_proxy_active() -> bool:
     """Returns True if local direct MongoDB connection failed and live API proxy mode is active."""
+    # Cloud environments (Vercel, Render, AWS Lambda) must NEVER proxy to themselves
+    if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("RENDER"):
+        return False
     global _USE_LIVE_PROXY
     if _CLIENT is None and not _USE_LIVE_PROXY:
         try:
@@ -68,7 +65,6 @@ def _load_env_mongodb_uri() -> str:
 
 
 
-
 _LAST_CONNECTION_ERROR: Optional[str] = None
 
 
@@ -89,11 +85,15 @@ def get_mongo_client() -> Optional[MongoClient]:
     except ImportError:
         ca = None
 
+    # Use shorter timeouts on cloud serverless to prevent function gateway timeouts
+    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    timeout_ms = 3500 if is_serverless else 6000
+
     opts = {
-        "serverSelectionTimeoutMS": 8000,
-        "connectTimeoutMS": 8000,
-        "socketTimeoutMS": 15000,
-        "maxPoolSize": 30
+        "serverSelectionTimeoutMS": timeout_ms,
+        "connectTimeoutMS": timeout_ms,
+        "socketTimeoutMS": 10000,
+        "maxPoolSize": 15
     }
     if ca:
         opts["tlsCAFile"] = ca
@@ -111,7 +111,7 @@ def get_mongo_client() -> Optional[MongoClient]:
         logger.warning(f"[MongoDB] Primary connection notice ({primary_err}), trying TLS fallback...")
         try:
             opts["tlsAllowInvalidCertificates"] = True
-            opts["serverSelectionTimeoutMS"] = 8000
+            opts["serverSelectionTimeoutMS"] = timeout_ms
             client = MongoClient(uri, **opts)
             client.admin.command('ping')
             logger.info("[MongoDB] Connected successfully via TLS fallback!")
@@ -124,7 +124,7 @@ def get_mongo_client() -> Optional[MongoClient]:
             _LAST_CONNECTION_ERROR = f"Primary: {type(primary_err).__name__}: {primary_err} | Fallback: {type(e).__name__}: {e}"
             logger.warning(f"[MongoDB] Direct MongoDB Atlas connection unavailable ({_LAST_CONNECTION_ERROR}). Activating Live API Proxy Mode...")
             _CLIENT = None
-            _USE_LIVE_PROXY = True
+            _USE_LIVE_PROXY = not is_serverless
     return _CLIENT
 
 
