@@ -76,6 +76,47 @@ def read_root():
 def health_check():
     return {"status": "healthy", "service": "marksheet-grading-portal"}
 
+@app.get("/api/debug/mongo")
+def debug_mongo_endpoint():
+    import re, certifi, traceback
+    from pymongo import MongoClient
+    from backend.database.mongo import _load_env_mongodb_uri, get_mongo_client, is_live_proxy_active, LIVE_BASE_URL
+    uri = _load_env_mongodb_uri()
+    masked_uri = re.sub(r':([^@]+)@', ':****@', uri)
+    direct_status = {}
+    try:
+        client = MongoClient(
+            uri,
+            tlsCAFile=certifi.where(),
+            serverSelectionTimeoutMS=8000,
+            connectTimeoutMS=8000
+        )
+        ping_res = client.admin.command('ping')
+        dbs = client.list_database_names()
+        classrooms_cnt = client["exam_grading_portal"]["classrooms"].count_documents({})
+        submissions_cnt = client["exam_grading_portal"]["submissions"].count_documents({})
+        direct_status = {
+            "status": "connected",
+            "ping": ping_res,
+            "databases": dbs,
+            "classrooms_count": classrooms_cnt,
+            "submissions_count": submissions_cnt
+        }
+    except Exception as e:
+        direct_status = {
+            "status": "failed",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+    return {
+        "direct_atlas_connection": direct_status,
+        "is_live_proxy_active": is_live_proxy_active(),
+        "live_proxy_target": LIVE_BASE_URL,
+        "uri_used": masked_uri
+    }
+
+
 class AutoCropRequest(BaseModel):
     image_b64: str
 

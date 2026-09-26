@@ -53,44 +53,51 @@ def _load_env_mongodb_uri() -> str:
 def get_mongo_client() -> Optional[MongoClient]:
     """Returns a singleton MongoDB client connection with certifi CA bundle and local TLS fallback."""
     global _CLIENT, _USE_LIVE_PROXY
-    if _CLIENT is None and not _USE_LIVE_PROXY:
-        uri = _load_env_mongodb_uri()
-        try:
-            import certifi
-            ca = certifi.where()
-        except ImportError:
-            ca = None
+    if _CLIENT is not None:
+        return _CLIENT
 
-        opts = {
-            "serverSelectionTimeoutMS": 1500,
-            "connectTimeoutMS": 2500,
-            "socketTimeoutMS": 4000,
-            "maxPoolSize": 50
-        }
-        if ca:
-            opts["tlsCAFile"] = ca
+    uri = _load_env_mongodb_uri()
+    try:
+        import certifi
+        ca = certifi.where()
+    except ImportError:
+        ca = None
 
+    opts = {
+        "serverSelectionTimeoutMS": 8000,
+        "connectTimeoutMS": 8000,
+        "socketTimeoutMS": 15000,
+        "maxPoolSize": 30
+    }
+    if ca:
+        opts["tlsCAFile"] = ca
+
+    try:
+        client = MongoClient(uri, **opts)
+        client.admin.command('ping')
+        logger.info("[MongoDB] Connected successfully to Atlas cluster!")
+        _CLIENT = client
+        _USE_LIVE_PROXY = False
+        _init_indexes()
+        return _CLIENT
+    except Exception as primary_err:
+        logger.warning(f"[MongoDB] Primary connection notice ({primary_err}), trying TLS fallback...")
         try:
-            _CLIENT = MongoClient(uri, **opts)
-            _CLIENT.admin.command('ping')
-            logger.info("[MongoDB] Connected successfully to cluster!")
+            opts["tlsAllowInvalidCertificates"] = True
+            opts["serverSelectionTimeoutMS"] = 8000
+            client = MongoClient(uri, **opts)
+            client.admin.command('ping')
+            logger.info("[MongoDB] Connected successfully via TLS fallback!")
+            _CLIENT = client
             _USE_LIVE_PROXY = False
             _init_indexes()
-        except Exception as primary_err:
-            logger.warning(f"[MongoDB] Primary connection attempt notice ({primary_err}), trying TLS fallback...")
-            try:
-                opts["tlsAllowInvalidCertificates"] = True
-                opts["serverSelectionTimeoutMS"] = 2000
-                _CLIENT = MongoClient(uri, **opts)
-                _CLIENT.admin.command('ping')
-                logger.info("[MongoDB] Connected successfully via TLS fallback configuration!")
-                _USE_LIVE_PROXY = False
-                _init_indexes()
-            except Exception as e:
-                logger.warning(f"[MongoDB] Direct MongoDB Atlas connection unavailable ({e}). Activating Smart Live API Proxy / In-Memory Mode...")
-                _CLIENT = None
-                _USE_LIVE_PROXY = True
+            return _CLIENT
+        except Exception as e:
+            logger.warning(f"[MongoDB] Direct MongoDB Atlas connection unavailable ({e}). Activating Live API Proxy Mode...")
+            _CLIENT = None
+            _USE_LIVE_PROXY = True
     return _CLIENT
+
 
 
 def get_database() -> Optional[Database]:
