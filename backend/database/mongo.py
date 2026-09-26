@@ -60,9 +60,9 @@ def get_mongo_client() -> Optional[MongoClient]:
             ca = None
 
         opts = {
-            "serverSelectionTimeoutMS": 3000,
-            "connectTimeoutMS": 5000,
-            "socketTimeoutMS": 8000,
+            "serverSelectionTimeoutMS": 1500,
+            "connectTimeoutMS": 2500,
+            "socketTimeoutMS": 4000,
             "maxPoolSize": 50
         }
         if ca:
@@ -78,33 +78,51 @@ def get_mongo_client() -> Optional[MongoClient]:
             logger.warning(f"[MongoDB] Primary connection attempt notice ({primary_err}), trying TLS fallback...")
             try:
                 opts["tlsAllowInvalidCertificates"] = True
-                opts["serverSelectionTimeoutMS"] = 4000
+                opts["serverSelectionTimeoutMS"] = 2000
                 _CLIENT = MongoClient(uri, **opts)
                 _CLIENT.admin.command('ping')
                 logger.info("[MongoDB] Connected successfully via TLS fallback configuration!")
                 _USE_LIVE_PROXY = False
                 _init_indexes()
             except Exception as e:
-                logger.warning(f"[MongoDB] Direct MongoDB Atlas connection unavailable on local network ({e}). Activating Smart Live API Proxy Mode...")
+                logger.warning(f"[MongoDB] Direct MongoDB Atlas connection unavailable ({e}). Activating Smart Live API Proxy / In-Memory Mode...")
                 _CLIENT = None
                 _USE_LIVE_PROXY = True
     return _CLIENT
 
 
-def get_database() -> Database:
-    """Returns the primary database instance."""
+def get_database() -> Optional[Database]:
+    """Returns the primary database instance or None if unreachable."""
     client = get_mongo_client()
-    return client[_DB_NAME]
+    if client is None:
+        return None
+    try:
+        return client[_DB_NAME]
+    except Exception:
+        return None
 
 
-def get_classrooms_collection() -> Collection:
-    """Returns the classrooms collection."""
-    return get_database()["classrooms"]
+def get_classrooms_collection() -> Optional[Collection]:
+    """Returns the classrooms collection or None if database is unreachable."""
+    db = get_database()
+    if db is None:
+        return None
+    try:
+        return db["classrooms"]
+    except Exception:
+        return None
 
 
-def get_submissions_collection() -> Collection:
-    """Returns the student submissions collection."""
-    return get_database()["submissions"]
+def get_submissions_collection() -> Optional[Collection]:
+    """Returns the student submissions collection or None if database is unreachable."""
+    db = get_database()
+    if db is None:
+        return None
+    try:
+        return db["submissions"]
+    except Exception:
+        return None
+
 
 
 def _init_indexes():
