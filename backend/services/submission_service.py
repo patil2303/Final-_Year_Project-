@@ -191,7 +191,7 @@ def create_or_get_classroom(
     }
     
     now = datetime.datetime.now(datetime.timezone.utc)
-    doc = {
+    set_fields = {
         "classroom_id": classroom_id,
         "year": year.strip().upper(),
         "branch": branch.strip().upper(),
@@ -200,10 +200,9 @@ def create_or_get_classroom(
         "subject": subject.strip().upper(),
         "exam_name": exam_name.strip(),
         "max_marks_config": max_marks_config or default_max_marks,
-        "is_submission_open": True,
-        "created_at": now,
         "updated_at": now
     }
+    doc = {**set_fields, "created_at": now, "is_submission_open": True}
     
     _INMEMORY_CLASSROOMS[classroom_id] = doc
     
@@ -214,7 +213,7 @@ def create_or_get_classroom(
             col.update_one(
                 {"classroom_id": classroom_id},
                 {
-                    "$set": doc,
+                    "$set": set_fields,
                     "$setOnInsert": {
                         "created_at": now,
                         "is_submission_open": True
@@ -229,7 +228,7 @@ def create_or_get_classroom(
                 _INMEMORY_CLASSROOMS[classroom_id] = cls
                 return cls
     except Exception as e:
-        logger.warning(f"[MongoDB] Could not persist classroom to MongoDB ({e}), saved to memory.")
+        logger.error(f"[MongoDB] Could not persist classroom to MongoDB ({e}), saved to memory.")
 
     if is_live_proxy_active():
         try:
@@ -345,7 +344,7 @@ def save_or_update_submission(
     total_marks = normalize_total_marks(marks_data.get("total", ""), question_marks)
     now = datetime.datetime.now(datetime.timezone.utc)
             
-    submission_doc = {
+    set_fields = {
         "classroom_id": classroom_id,
         "student_name": student_name,
         "prn": prn,
@@ -359,9 +358,9 @@ def save_or_update_submission(
         "total_marks": total_marks,
         "status": "submitted",
         "raw_image_url": raw_image_url,
-        "submitted_at": now,
         "updated_at": now
     }
+    submission_doc = {**set_fields, "submitted_at": now}
     
     existing_idx = -1
     for idx, s in enumerate(_INMEMORY_SUBMISSIONS):
@@ -390,7 +389,7 @@ def save_or_update_submission(
             col.update_one(
                 filter_query,
                 {
-                    "$set": submission_doc,
+                    "$set": set_fields,
                     "$setOnInsert": {"submitted_at": now}
                 },
                 upsert=True
@@ -401,7 +400,7 @@ def save_or_update_submission(
     except PermissionError:
         raise
     except Exception as e:
-        logger.warning(f"[MongoDB] Could not persist submission to MongoDB ({e}), saved to memory.")
+        logger.error(f"[MongoDB] Could not persist submission to MongoDB ({e}), saved to memory.")
 
     if is_live_proxy_active():
         try:
