@@ -11,7 +11,7 @@ _CLIENT: Optional[MongoClient] = None
 _DB_NAME = "exam_grading_portal"
 _USE_LIVE_PROXY: bool = False
 LIVE_BASE_URL = os.environ.get("LIVE_API_URL", "https://final-year-project-rho-sable.vercel.app")
-DEFAULT_MONGODB_URI = "mongodb+srv://shreyasspatil23:9scHnsn9sJd3fSNw@cluster0.dbplhay.mongodb.net/exam_grading_portal?retryWrites=true&w=majority&appName=Cluster0&authSource=admin"
+DEFAULT_MONGODB_URI = "mongodb+srv://shreyasspatil23:zIwTZk2eobahjERW@cluster0.dbplhay.mongodb.net/exam_grading_portal?retryWrites=true&w=majority&appName=Cluster0"
 
 
 def _clean_mongodb_uri(uri: str) -> str:
