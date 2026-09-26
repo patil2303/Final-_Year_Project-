@@ -11,7 +11,25 @@ _CLIENT: Optional[MongoClient] = None
 _DB_NAME = "exam_grading_portal"
 _USE_LIVE_PROXY: bool = False
 LIVE_BASE_URL = os.environ.get("LIVE_API_URL", "https://final-year-project-rho-sable.vercel.app")
-DEFAULT_MONGODB_URI = "mongodb+srv://shreyasspatil23:9scHnsn9sJd3fSNw@cluster0.dbplhay.mongodb.net/exam_grading_portal?retryWrites=true&w=majority&appName=Cluster0"
+DEFAULT_MONGODB_URI = "mongodb+srv://shreyasspatil23:9scHnsn9sJd3fSNw@cluster0.dbplhay.mongodb.net/exam_grading_portal?retryWrites=true&w=majority&appName=Cluster0&authSource=admin"
+
+
+def _clean_mongodb_uri(uri: str) -> str:
+    """Sanitizes and fixes common MongoDB URI formatting issues (e.g., missing '?' delimiter)."""
+    if not uri:
+        return uri
+    uri = uri.strip().strip('"').strip("'")
+    
+    # Fix missing '?' after database name, e.g. /exam_grading_portalretryWrites=true
+    import re
+    uri = re.sub(r'(/[^/?]+?)(retryWrites=|authSource=|appName=|w=|tls=)', r'\1?\2', uri)
+    
+    # Ensure authSource=admin is present
+    if "authSource=" not in uri:
+        sep = "&" if "?" in uri else "?"
+        uri = f"{uri}{sep}authSource=admin"
+        
+    return uri
 
 
 def is_live_proxy_active() -> bool:
@@ -29,7 +47,7 @@ def _load_env_mongodb_uri() -> str:
     """Reads MONGODB_URI from environment or local .env file, defaulting to MongoDB Atlas."""
     uri = os.environ.get("MONGODB_URI")
     if uri and uri.strip():
-        return uri.strip()
+        return _clean_mongodb_uri(uri.strip())
 
     # Try loading from .env in project root
     env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
@@ -41,12 +59,13 @@ def _load_env_mongodb_uri() -> str:
                     if line.startswith("MONGODB_URI="):
                         val = line.split("=", 1)[1].strip().strip('"').strip("'")
                         if val:
-                            return val
+                            return _clean_mongodb_uri(val)
         except Exception as e:
             logger.warning(f"Failed to read .env for MongoDB URI: {e}")
 
     # Default to MongoDB Atlas cluster
-    return DEFAULT_MONGODB_URI
+    return _clean_mongodb_uri(DEFAULT_MONGODB_URI)
+
 
 
 

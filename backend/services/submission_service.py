@@ -21,14 +21,14 @@ logger = logging.getLogger(__name__)
 STANDARD_QUESTION_HEADERS = ["1a", "1b", "1c", "1d", "1e", "1f", "2a", "2b", "3a", "3b"]
 
 
-def _proxy_get(endpoint: str, timeout: int = 4) -> Any:
+def _proxy_get(endpoint: str, timeout: int = 15) -> Any:
     url = f"{LIVE_BASE_URL}{endpoint}"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (SmartLocalProxy)"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _proxy_post(endpoint: str, payload: Dict[str, Any], timeout: int = 5) -> Any:
+def _proxy_post(endpoint: str, payload: Dict[str, Any], timeout: int = 25) -> Any:
     url = f"{LIVE_BASE_URL}{endpoint}"
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(

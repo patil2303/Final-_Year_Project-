@@ -85,23 +85,24 @@ def debug_mongo_endpoint():
     masked_uri = re.sub(r':([^@]+)@', ':****@', uri)
     direct_status = {}
     try:
-        client = MongoClient(
-            uri,
-            tlsCAFile=certifi.where(),
-            serverSelectionTimeoutMS=8000,
-            connectTimeoutMS=8000
-        )
-        ping_res = client.admin.command('ping')
-        dbs = client.list_database_names()
-        classrooms_cnt = client["exam_grading_portal"]["classrooms"].count_documents({})
-        submissions_cnt = client["exam_grading_portal"]["submissions"].count_documents({})
-        direct_status = {
-            "status": "connected",
-            "ping": ping_res,
-            "databases": dbs,
-            "classrooms_count": classrooms_cnt,
-            "submissions_count": submissions_cnt
-        }
+        client = get_mongo_client()
+        if client is not None:
+            ping_res = client.admin.command('ping')
+            dbs = client.list_database_names()
+            classrooms_cnt = client["exam_grading_portal"]["classrooms"].count_documents({})
+            submissions_cnt = client["exam_grading_portal"]["submissions"].count_documents({})
+            direct_status = {
+                "status": "connected",
+                "ping": ping_res,
+                "databases": dbs,
+                "classrooms_count": classrooms_cnt,
+                "submissions_count": submissions_cnt
+            }
+        else:
+            direct_status = {
+                "status": "failed",
+                "error": "get_mongo_client() returned None (unreachable)"
+            }
     except Exception as e:
         direct_status = {
             "status": "failed",
