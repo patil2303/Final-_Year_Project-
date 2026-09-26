@@ -153,65 +153,13 @@ def normalize_total_marks(total_str: str, question_marks: Dict[str, Any]) -> str
 
 
 # ==============================================================================
-# CLASSROOM / BATCH MANAGEMENT (FAULT-TOLERANT WITH IN-MEMORY FALLBACK)
+# CLASSROOM / BATCH MANAGEMENT (DIRECT MONGODB ATLAS SYNCHRONIZATION)
 # ==============================================================================
 
 _INMEMORY_CLASSROOMS: Dict[str, Dict[str, Any]] = {}
 _INMEMORY_SUBMISSIONS: List[Dict[str, Any]] = []
 
-def _seed_default_classrooms():
-    """Pre-populates classrooms matching the user's MongoDB Atlas cluster."""
-    default_max_marks = {
-        "1a": "2", "1b": "2", "1c": "2", "1d": "2", "1e": "2", "1f": "2",
-        "2a": "5", "2b": "5", "3a": "5", "3b": "5", "total": "20"
-    }
-    now = datetime.datetime.now(datetime.timezone.utc)
-    defaults = [
-        {
-            "classroom_id": "SE_IT_A_IV_CNND_IA1",
-            "year": "SE",
-            "branch": "IT",
-            "division": "A",
-            "semester": "IV",
-            "subject": "CNND",
-            "exam_name": "IA-1",
-            "max_marks_config": default_max_marks,
-            "is_submission_open": True,
-            "created_at": now,
-            "updated_at": now
-        },
-        {
-            "classroom_id": "BE_IT_A_SEMIV_CNND_IA1",
-            "year": "BE",
-            "branch": "IT",
-            "division": "A",
-            "semester": "SEM IV",
-            "subject": "CNND",
-            "exam_name": "IA-1",
-            "max_marks_config": default_max_marks,
-            "is_submission_open": True,
-            "created_at": now,
-            "updated_at": now
-        },
-        {
-            "classroom_id": "SE_IT_B_IV_CNND_IA1",
-            "year": "SE",
-            "branch": "IT",
-            "division": "B",
-            "semester": "IV",
-            "subject": "CNND",
-            "exam_name": "IA-1",
-            "max_marks_config": default_max_marks,
-            "is_submission_open": True,
-            "created_at": now,
-            "updated_at": now
-        }
-    ]
-    for cls in defaults:
-        if cls["classroom_id"] not in _INMEMORY_CLASSROOMS:
-            _INMEMORY_CLASSROOMS[cls["classroom_id"]] = cls
 
-_seed_default_classrooms()
 
 
 
@@ -333,34 +281,32 @@ def toggle_classroom_submission_status(classroom_id: str, is_open: bool) -> bool
 
 
 def list_classrooms() -> List[Dict[str, Any]]:
-    """Returns all registered classrooms, ensuring default fallback sessions are always available."""
-    result_map = dict(_INMEMORY_CLASSROOMS)
-    
+    """Returns all registered classrooms strictly fetched from MongoDB Atlas."""
+    # 1. Direct MongoDB Atlas query
     try:
         col = get_classrooms_collection()
         if col is not None:
             cursor = col.find({}, {"_id": 0}).sort("created_at", -1)
-            db_classrooms = list(cursor)
-            for c in db_classrooms:
+            classrooms = list(cursor)
+            for c in classrooms:
                 if "is_submission_open" not in c:
                     c["is_submission_open"] = True
-                result_map[c["classroom_id"]] = c
+            return classrooms
     except Exception as e:
-        logger.warning(f"[MongoDB] list_classrooms notice ({e}) — utilizing fallback store.")
+        logger.warning(f"[MongoDB] Direct list_classrooms notice: {e}")
 
+    # 2. Live proxy query (used on local when direct MongoDB connection is blocked)
     if is_live_proxy_active():
         try:
             res = _proxy_get("/api/classrooms")
-            if res and isinstance(res, dict):
-                proxy_classes = res.get("classrooms", [])
-                for c in proxy_classes:
-                    result_map[c["classroom_id"]] = c
+            if res and isinstance(res, dict) and "classrooms" in res:
+                return res.get("classrooms", [])
         except Exception as e:
             logger.warning(f"[Proxy] Failed to proxy list_classrooms: {e}")
 
-    classrooms = list(result_map.values())
-    classrooms.sort(key=lambda c: str(c.get("created_at", "")), reverse=True)
-    return classrooms
+    # 3. If user created classrooms during this session, return them
+    return list(_INMEMORY_CLASSROOMS.values())
+
 
 
 # ==============================================================================
@@ -476,46 +422,43 @@ def save_or_update_submission(
 def get_classroom_submissions(classroom_id: str) -> List[Dict[str, Any]]:
     """
     Retrieves all student submissions for a classroom, strictly sorted
-    by natural numeric Roll Number.
+    by natural numeric Roll Number from MongoDB Atlas.
     """
-    results_map = {}
-    for s in _INMEMORY_SUBMISSIONS:
-        if s.get("classroom_id") == classroom_id:
-            key = s.get("prn") or s.get("roll_no") or s.get("student_name")
-            if key:
-                results_map[key] = s
-
+    # 1. Direct MongoDB Atlas query
     try:
         col = get_submissions_collection()
         if col is not None:
             cursor = col.find({"classroom_id": classroom_id}, {"_id": 0})
-            for s in cursor:
-                key = s.get("prn") or s.get("roll_no") or s.get("student_name")
-                if key:
-                    results_map[key] = s
+            subs = list(cursor)
+            subs.sort(key=lambda s: (
+                s.get("roll_numeric") if s.get("roll_numeric") is not None and s.get("roll_numeric") != 999999
+                else parse_numeric_roll(s.get("roll_no")),
+                str(s.get("prn", "")),
+                str(s.get("student_name", ""))
+            ))
+            return subs
     except Exception as e:
-        logger.warning(f"[MongoDB] get_classroom_submissions notice: {e}")
+        logger.warning(f"[MongoDB] get_classroom_submissions error: {e}")
 
+    # 2. Live proxy query
     if is_live_proxy_active():
         try:
             res = _proxy_get(f"/api/submissions/{classroom_id}")
-            if res and isinstance(res, dict):
-                proxy_subs = res.get("submissions", [])
-                for s in proxy_subs:
-                    key = s.get("prn") or s.get("roll_no") or s.get("student_name")
-                    if key:
-                        results_map[key] = s
+            if res and isinstance(res, dict) and "submissions" in res:
+                return res.get("submissions", [])
         except Exception as e:
             logger.warning(f"[Proxy] Proxy get_classroom_submissions notice: {e}")
 
-    subs = list(results_map.values())
-    subs.sort(key=lambda s: (
+    # 3. Session memory fallback (only what was submitted in this session)
+    session_subs = [s for s in _INMEMORY_SUBMISSIONS if s.get("classroom_id") == classroom_id]
+    session_subs.sort(key=lambda s: (
         s.get("roll_numeric") if s.get("roll_numeric") is not None and s.get("roll_numeric") != 999999
         else parse_numeric_roll(s.get("roll_no")),
         str(s.get("prn", "")),
         str(s.get("student_name", ""))
     ))
-    return subs
+    return session_subs
+
 
 
 
