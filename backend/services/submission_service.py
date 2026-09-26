@@ -207,6 +207,7 @@ def create_or_get_classroom(
     _INMEMORY_CLASSROOMS[classroom_id] = doc
     
     # Try updating MongoDB if client available
+    mongo_err = None
     try:
         col = get_classrooms_collection()
         if col is not None:
@@ -225,10 +226,17 @@ def create_or_get_classroom(
             if cls:
                 if "is_submission_open" not in cls:
                     cls["is_submission_open"] = True
+                cls["_stored_in_mongo"] = True
                 _INMEMORY_CLASSROOMS[classroom_id] = cls
                 return cls
+        else:
+            mongo_err = f"col is None (db={get_database()})"
     except Exception as e:
+        mongo_err = f"{type(e).__name__}: {str(e)}"
         logger.error(f"[MongoDB] Could not persist classroom to MongoDB ({e}), saved to memory.")
+
+    _INMEMORY_CLASSROOMS[classroom_id]["_stored_in_mongo"] = False
+    _INMEMORY_CLASSROOMS[classroom_id]["_mongo_error"] = mongo_err
 
     if is_live_proxy_active():
         try:
