@@ -80,7 +80,7 @@ def health_check():
 def debug_mongo_endpoint():
     import re, certifi, traceback
     from pymongo import MongoClient
-    from backend.database.mongo import _load_env_mongodb_uri, get_mongo_client, is_live_proxy_active, LIVE_BASE_URL
+    from backend.database.mongo import _load_env_mongodb_uri, get_mongo_client, is_live_proxy_active, LIVE_BASE_URL, get_last_connection_error
     uri = _load_env_mongodb_uri()
     masked_uri = re.sub(r':([^@]+)@', ':****@', uri)
     direct_status = {}
@@ -101,7 +101,7 @@ def debug_mongo_endpoint():
         else:
             direct_status = {
                 "status": "failed",
-                "error": "get_mongo_client() returned None (unreachable)"
+                "error": f"get_mongo_client() returned None: {get_last_connection_error()}"
             }
     except Exception as e:
         direct_status = {
@@ -110,8 +110,24 @@ def debug_mongo_endpoint():
             "traceback": traceback.format_exc()
         }
 
+    # Diagnostics for individual connection attempts
+    diag = {}
+    for name, test_uri in [
+        ("current_uri", uri),
+        ("without_authSource", uri.replace("&authSource=admin", "").replace("?authSource=admin", "")),
+        ("authSource_exam_grading_portal", uri.replace("authSource=admin", "authSource=exam_grading_portal")),
+    ]:
+        try:
+            tc = MongoClient(test_uri, serverSelectionTimeoutMS=4000, connectTimeoutMS=4000, tlsCAFile=certifi.where())
+            tc.admin.command('ping')
+            diag[name] = "success"
+        except Exception as te:
+            diag[name] = f"{type(te).__name__}: {str(te)}"
+
     return {
         "direct_atlas_connection": direct_status,
+        "diagnostics": diag,
+        "last_connection_error": get_last_connection_error(),
         "is_live_proxy_active": is_live_proxy_active(),
         "live_proxy_target": LIVE_BASE_URL,
         "uri_used": masked_uri

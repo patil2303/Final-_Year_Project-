@@ -69,9 +69,16 @@ def _load_env_mongodb_uri() -> str:
 
 
 
+_LAST_CONNECTION_ERROR: Optional[str] = None
+
+
+def get_last_connection_error() -> Optional[str]:
+    return _LAST_CONNECTION_ERROR
+
+
 def get_mongo_client() -> Optional[MongoClient]:
     """Returns a singleton MongoDB client connection with certifi CA bundle and local TLS fallback."""
-    global _CLIENT, _USE_LIVE_PROXY
+    global _CLIENT, _USE_LIVE_PROXY, _LAST_CONNECTION_ERROR
     if _CLIENT is not None:
         return _CLIENT
 
@@ -97,6 +104,7 @@ def get_mongo_client() -> Optional[MongoClient]:
         logger.info("[MongoDB] Connected successfully to Atlas cluster!")
         _CLIENT = client
         _USE_LIVE_PROXY = False
+        _LAST_CONNECTION_ERROR = None
         _init_indexes()
         return _CLIENT
     except Exception as primary_err:
@@ -109,10 +117,12 @@ def get_mongo_client() -> Optional[MongoClient]:
             logger.info("[MongoDB] Connected successfully via TLS fallback!")
             _CLIENT = client
             _USE_LIVE_PROXY = False
+            _LAST_CONNECTION_ERROR = None
             _init_indexes()
             return _CLIENT
         except Exception as e:
-            logger.warning(f"[MongoDB] Direct MongoDB Atlas connection unavailable ({e}). Activating Live API Proxy Mode...")
+            _LAST_CONNECTION_ERROR = f"Primary: {type(primary_err).__name__}: {primary_err} | Fallback: {type(e).__name__}: {e}"
+            logger.warning(f"[MongoDB] Direct MongoDB Atlas connection unavailable ({_LAST_CONNECTION_ERROR}). Activating Live API Proxy Mode...")
             _CLIENT = None
             _USE_LIVE_PROXY = True
     return _CLIENT
