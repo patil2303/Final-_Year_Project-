@@ -77,6 +77,8 @@ def get_mongo_client() -> Optional[MongoClient]:
     global _CLIENT, _USE_LIVE_PROXY, _LAST_CONNECTION_ERROR
     if _CLIENT is not None:
         return _CLIENT
+    if _USE_LIVE_PROXY:
+        return None
 
     uri = _load_env_mongodb_uri()
     try:
