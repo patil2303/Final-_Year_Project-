@@ -91,12 +91,38 @@ def debug_mongo_endpoint():
             dbs = client.list_database_names()
             classrooms_cnt = client["exam_grading_portal"]["classrooms"].count_documents({})
             submissions_cnt = client["exam_grading_portal"]["submissions"].count_documents({})
+            exam_portal_write = None
+            try:
+                client["exam_grading_portal"]["_healthcheck"].update_one(
+                    {"_id": "test_ping"},
+                    {"$set": {"ping": True}},
+                    upsert=True
+                )
+                exam_portal_write = "success"
+                client["exam_grading_portal"]["_healthcheck"].delete_one({"_id": "test_ping"})
+            except Exception as w_err:
+                exam_portal_write = f"{type(w_err).__name__}: {w_err}"
+
+            test_db_write = None
+            try:
+                client["test"]["_healthcheck"].update_one(
+                    {"_id": "test_ping"},
+                    {"$set": {"ping": True}},
+                    upsert=True
+                )
+                test_db_write = "success"
+                client["test"]["_healthcheck"].delete_one({"_id": "test_ping"})
+            except Exception as w_err:
+                test_db_write = f"{type(w_err).__name__}: {w_err}"
+
             direct_status = {
                 "status": "connected",
                 "ping": ping_res,
                 "databases": dbs,
                 "classrooms_count": classrooms_cnt,
-                "submissions_count": submissions_cnt
+                "submissions_count": submissions_cnt,
+                "write_perm_exam_grading_portal": exam_portal_write,
+                "write_perm_test": test_db_write
             }
         else:
             direct_status = {
