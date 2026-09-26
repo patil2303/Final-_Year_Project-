@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 _CLIENT: Optional[MongoClient] = None
 _DB_NAME = "exam_grading_portal"
 _USE_LIVE_PROXY: bool = False
-RENDER_LIVE_BASE_URL = "https://final-year-project-1-5tu0.onrender.com"
+LIVE_BASE_URL = os.environ.get("LIVE_API_URL", "https://final-year-project-rho-sable.vercel.app")
+DEFAULT_MONGODB_URI = "mongodb+srv://shreyasspatil23:9scHnsn9sJd3fSNw@cluster0.dbplhay.mongodb.net/exam_grading_portal?retryWrites=true&w=majority&appName=Cluster0"
 
 
 def is_live_proxy_active() -> bool:
@@ -25,10 +26,10 @@ def is_live_proxy_active() -> bool:
 
 
 def _load_env_mongodb_uri() -> str:
-    """Reads MONGODB_URI from environment or local .env file."""
+    """Reads MONGODB_URI from environment or local .env file, defaulting to MongoDB Atlas."""
     uri = os.environ.get("MONGODB_URI")
-    if uri:
-        return uri
+    if uri and uri.strip():
+        return uri.strip()
 
     # Try loading from .env in project root
     env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
@@ -44,8 +45,9 @@ def _load_env_mongodb_uri() -> str:
         except Exception as e:
             logger.warning(f"Failed to read .env for MongoDB URI: {e}")
 
-    # Fallback to local MongoDB
-    return "mongodb://localhost:27017"
+    # Default to MongoDB Atlas cluster
+    return DEFAULT_MONGODB_URI
+
 
 
 def get_mongo_client() -> Optional[MongoClient]:

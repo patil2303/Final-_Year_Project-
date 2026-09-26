@@ -13,7 +13,7 @@ from backend.database.mongo import (
     get_classrooms_collection,
     get_submissions_collection,
     is_live_proxy_active,
-    RENDER_LIVE_BASE_URL
+    LIVE_BASE_URL
 )
 
 logger = logging.getLogger(__name__)
@@ -21,15 +21,15 @@ logger = logging.getLogger(__name__)
 STANDARD_QUESTION_HEADERS = ["1a", "1b", "1c", "1d", "1e", "1f", "2a", "2b", "3a", "3b"]
 
 
-def _proxy_get(endpoint: str, timeout: int = 3) -> Any:
-    url = f"{RENDER_LIVE_BASE_URL}{endpoint}"
+def _proxy_get(endpoint: str, timeout: int = 4) -> Any:
+    url = f"{LIVE_BASE_URL}{endpoint}"
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (SmartLocalProxy)"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _proxy_post(endpoint: str, payload: Dict[str, Any], timeout: int = 4) -> Any:
-    url = f"{RENDER_LIVE_BASE_URL}{endpoint}"
+def _proxy_post(endpoint: str, payload: Dict[str, Any], timeout: int = 5) -> Any:
+    url = f"{LIVE_BASE_URL}{endpoint}"
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         url,
@@ -39,6 +39,7 @@ def _proxy_post(endpoint: str, payload: Dict[str, Any], timeout: int = 4) -> Any
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
+
 
 
 
@@ -159,13 +160,39 @@ _INMEMORY_CLASSROOMS: Dict[str, Dict[str, Any]] = {}
 _INMEMORY_SUBMISSIONS: List[Dict[str, Any]] = []
 
 def _seed_default_classrooms():
-    """Pre-populates standard default classrooms so active sessions are always available."""
+    """Pre-populates classrooms matching the user's MongoDB Atlas cluster."""
     default_max_marks = {
         "1a": "2", "1b": "2", "1c": "2", "1d": "2", "1e": "2", "1f": "2",
         "2a": "5", "2b": "5", "3a": "5", "3b": "5", "total": "20"
     }
     now = datetime.datetime.now(datetime.timezone.utc)
     defaults = [
+        {
+            "classroom_id": "SE_IT_A_IV_CNND_IA1",
+            "year": "SE",
+            "branch": "IT",
+            "division": "A",
+            "semester": "IV",
+            "subject": "CNND",
+            "exam_name": "IA-1",
+            "max_marks_config": default_max_marks,
+            "is_submission_open": True,
+            "created_at": now,
+            "updated_at": now
+        },
+        {
+            "classroom_id": "BE_IT_A_SEMIV_CNND_IA1",
+            "year": "BE",
+            "branch": "IT",
+            "division": "A",
+            "semester": "SEM IV",
+            "subject": "CNND",
+            "exam_name": "IA-1",
+            "max_marks_config": default_max_marks,
+            "is_submission_open": True,
+            "created_at": now,
+            "updated_at": now
+        },
         {
             "classroom_id": "SE_IT_B_IV_CNND_IA1",
             "year": "SE",
@@ -178,32 +205,6 @@ def _seed_default_classrooms():
             "is_submission_open": True,
             "created_at": now,
             "updated_at": now
-        },
-        {
-            "classroom_id": "TE_CO_A_V_OS_IA1",
-            "year": "TE",
-            "branch": "COMPUTER",
-            "division": "A",
-            "semester": "V",
-            "subject": "OS",
-            "exam_name": "IA-1",
-            "max_marks_config": default_max_marks,
-            "is_submission_open": True,
-            "created_at": now,
-            "updated_at": now
-        },
-        {
-            "classroom_id": "BE_EXTC_C_VII_AI_IA1",
-            "year": "BE",
-            "branch": "EXTC",
-            "division": "C",
-            "semester": "VII",
-            "subject": "AI",
-            "exam_name": "IA-1",
-            "max_marks_config": default_max_marks,
-            "is_submission_open": True,
-            "created_at": now,
-            "updated_at": now
         }
     ]
     for cls in defaults:
@@ -211,6 +212,7 @@ def _seed_default_classrooms():
             _INMEMORY_CLASSROOMS[cls["classroom_id"]] = cls
 
 _seed_default_classrooms()
+
 
 
 def create_or_get_classroom(
