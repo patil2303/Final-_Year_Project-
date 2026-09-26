@@ -111,32 +111,8 @@ def debug_mongo_endpoint():
             "traceback": traceback.format_exc()
         }
 
-    # Fast credential validation
-    candidates = [
-        ("shreyasspatil23_9scH", "mongodb+srv://shreyasspatil23:9scHnsn9sJd3fSNw@cluster0.dbplhay.mongodb.net/exam_grading_portal?retryWrites=true&w=majority&appName=Cluster0"),
-        ("Madara_9scH", "mongodb+srv://Madara:9scHnsn9sJd3fSNw@cluster0.dbplhay.mongodb.net/exam_grading_portal?retryWrites=true&w=majority&appName=Cluster0"),
-        ("admin_Project2026", "mongodb+srv://admin:Project2026!@cluster0.dbplhay.mongodb.net/exam_grading_portal?retryWrites=true&w=majority&appName=Cluster0"),
-        ("Madara_Project2026", "mongodb+srv://Madara:Project2026!@cluster0.dbplhay.mongodb.net/exam_grading_portal?retryWrites=true&w=majority&appName=Cluster0"),
-        ("shreyasspatil23_Project2026", "mongodb+srv://shreyasspatil23:Project2026!@cluster0.dbplhay.mongodb.net/exam_grading_portal?retryWrites=true&w=majority&appName=Cluster0"),
-    ]
-    candidate_results = {}
-    for cname, curi in candidates:
-        try:
-            cli = MongoClient(curi, tlsCAFile=certifi.where(), serverSelectionTimeoutMS=2000, connectTimeoutMS=2000)
-            cli.admin.command('ping')
-            candidate_results[cname] = "SUCCESS"
-        except Exception as ce:
-            err_msg = str(ce)
-            if "bad auth" in err_msg:
-                candidate_results[cname] = "bad auth"
-            elif "ServerSelectionTimeout" in err_msg:
-                candidate_results[cname] = "timeout"
-            else:
-                candidate_results[cname] = f"{type(ce).__name__}: {err_msg[:60]}"
-
     return {
         "direct_atlas_connection": direct_status,
-        "candidate_results": candidate_results,
         "last_connection_error": get_last_connection_error(),
         "is_live_proxy_active": is_live_proxy_active(),
         "live_proxy_target": LIVE_BASE_URL,
