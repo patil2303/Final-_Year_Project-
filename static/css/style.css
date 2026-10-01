@@ -1948,4 +1948,359 @@ input:checked + .slider-toggle:before {
 
 .faculty-toggle-status.status-closed {
     color: #DC2626;
+}
+
+/* ==========================================================================
+   BATCH MULTI-MARKSHEET UPLOAD & VERIFICATION STEPPER STYLES
+   ========================================================================== */
+
+/* 1. Batch Upload Queue Bar */
+.batch-queue-container {
+    background: #F8FAFC;
+    border: 1.5px solid #E2E8F0;
+    border-radius: var(--radius-card);
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+
+.batch-queue-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.batch-queue-header h4 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-dark);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.batch-queue-badge {
+    background: #EEF2FF;
+    color: #4338CA;
+    border: 1px solid #C7D2FE;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.batch-file-chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 4px;
+    margin-bottom: 14px;
+}
+
+.batch-file-chip {
+    background: #FFFFFF;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.batch-file-chip:hover {
+    border-color: var(--primary);
+}
+
+.batch-file-chip-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+}
+
+.batch-file-chip-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: #F1F5F9;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.batch-file-chip-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+
+.batch-file-chip-size {
+    font-size: 0.72rem;
+    color: #94A3B8;
+}
+
+.batch-file-chip-remove {
+    background: none;
+    border: none;
+    color: #94A3B8;
+    cursor: pointer;
+    padding: 4px;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.batch-file-chip-remove:hover {
+    color: #EF4444;
+    background: #FEE2E2;
+}
+
+.batch-queue-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #E2E8F0;
+}
+
+/* 2. Batch Verification Toolbar (Carousel / Stepper) */
+.batch-verification-toolbar {
+    background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%);
+    border: 2px solid #DBEAFE;
+    border-radius: var(--radius-card);
+    padding: 16px 20px;
+    margin-top: 24px;
+    margin-bottom: 8px;
+    box-shadow: 0 4px 12px rgba(30, 64, 175, 0.05);
+}
+
+.batch-nav-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.batch-nav-group .btn {
+    min-width: 140px;
+    justify-content: center;
+    font-weight: 600;
+}
+
+.batch-counter-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    text-align: center;
+}
+
+.batch-counter-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #1E3A8A;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.batch-student-pill {
+    background: #FFFFFF;
+    border: 1px solid #BFDBFE;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #1E40AF;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+
+.batch-verify-status-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+}
+
+.batch-verify-status-badge.pending {
+    background: #FEF3C7;
+    color: #B45309;
+    border: 1px solid #FCD34D;
+}
+
+.batch-verify-status-badge.verified {
+    background: #DCFCE7;
+    color: #15803D;
+    border: 1px solid #86EFAC;
+}
+
+.batch-verify-status-badge.submitted {
+    background: #DBEAFE;
+    color: #1D4ED8;
+    border: 1px solid #93C5FD;
+}
+
+/* Stepper Pills Strip */
+.batch-stepper-pills {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    border-top: 1px dashed #BFDBFE;
+}
+
+.batch-stepper-pill {
+    background: #FFFFFF;
+    border: 1.5px solid #CBD5E1;
+    color: #475569;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.batch-stepper-pill:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+}
+
+.batch-stepper-pill.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #FFFFFF;
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
+}
+
+.batch-stepper-pill.verified {
+    border-color: #22C55E;
+    background: #F0FDF4;
+    color: #15803D;
+}
+
+.batch-stepper-pill.verified.active {
+    background: #16A34A;
+    border-color: #16A34A;
+    color: #FFFFFF;
+}
+
+.batch-stepper-pill.submitted {
+    border-color: #3B82F6;
+    background: #EFF6FF;
+    color: #1D4ED8;
+}
+
+.batch-stepper-pill.submitted.active {
+    background: #2563EB;
+    border-color: #2563EB;
+    color: #FFFFFF;
+}
+
+/* 3. Marksheet Original Scan Collapsible Preview Strip */
+.batch-image-preview-card {
+    background: #FFFFFF;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-card);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+
+.batch-image-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.batch-image-preview-header h5 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-dark);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.batch-image-preview-body {
+    margin-top: 10px;
+    text-align: center;
+    background: #F8FAFC;
+    border: 1px dashed #CBD5E1;
+    border-radius: 8px;
+    padding: 8px;
+    max-height: 380px;
+    overflow-y: auto;
+}
+
+.batch-image-preview-body img {
+    max-width: 100%;
+    max-height: 340px;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    object-fit: contain;
+}
+
+/* 4. Batch Commit Banner */
+.batch-commit-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #F0FDF4;
+    border: 1.5px solid #86EFAC;
+    border-radius: 12px;
+    padding: 12px 18px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.batch-commit-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.batch-commit-info strong {
+    font-size: 0.95rem;
+    color: #14532D;
+}
+
+.batch-commit-info p {
+    font-size: 0.8rem;
+    color: #166534;
+    margin: 0;
 }

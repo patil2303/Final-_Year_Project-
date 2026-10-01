@@ -324,15 +324,17 @@ def save_or_update_submission(
     classroom_id: str,
     student_metadata: Dict[str, Any],
     marks_data: Dict[str, Any],
-    raw_image_url: Optional[str] = None
+    raw_image_url: Optional[str] = None,
+    is_faculty: bool = False
 ) -> Dict[str, Any]:
     """
     Saves a student's extracted and verified marksheet to database / in-memory store.
     Uses smart upsert on (classroom_id, prn) or (classroom_id, roll_no).
     """
-    cls_doc = _INMEMORY_CLASSROOMS.get(classroom_id)
-    if cls_doc and not cls_doc.get("is_submission_open", True):
-        raise PermissionError("Submissions for this exam session are currently closed by the faculty.")
+    if not is_faculty:
+        cls_doc = _INMEMORY_CLASSROOMS.get(classroom_id)
+        if cls_doc and not cls_doc.get("is_submission_open", True):
+            raise PermissionError("Submissions for this exam session are currently closed by the faculty.")
 
     prn = str(student_metadata.get("prn", "")).strip()
     roll_no = str(student_metadata.get("roll_no", "")).strip()
@@ -415,7 +417,8 @@ def save_or_update_submission(
             payload = {
                 "classroom_id": classroom_id,
                 "student_metadata": student_metadata,
-                "marks_data": marks_data
+                "marks_data": marks_data,
+                "is_faculty": is_faculty
             }
             res = _proxy_post("/api/submissions", payload)
             if res and isinstance(res, dict) and res.get("submission"):

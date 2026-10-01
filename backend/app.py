@@ -595,6 +595,7 @@ class StudentSubmissionRequest(BaseModel):
     student_metadata: Dict[str, Any]
     marks_data: Dict[str, Any]
     raw_image_b64: Optional[str] = None
+    is_faculty: Optional[bool] = False
 
 
 @app.post("/api/classrooms")
@@ -661,7 +662,8 @@ def save_student_submission_endpoint(req: StudentSubmissionRequest):
             classroom_id=req.classroom_id,
             student_metadata=req.student_metadata,
             marks_data=req.marks_data,
-            raw_image_url=None
+            raw_image_url=None,
+            is_faculty=req.is_faculty or False
         )
         return {"status": "success", "submission": saved}
     except PermissionError as pe:

@@ -309,129 +309,459 @@
             <!-- ================================================================= -->
             <div id="facultyPortalView" style="display: none;">
 
-                <!-- Faculty Control Header Card -->
-                <div class="card faculty-header-card">
-                    <div class="faculty-header-top">
-                        <div>
-                            <h3><i class="fa-solid fa-chalkboard-user"></i> Faculty Master Management Dashboard</h3>
-                            <p>Monitor live student submissions in MongoDB, audit marks, and export consolidated Master Excel</p>
+                <!-- Faculty Sub-Navigation Switcher (Roster vs Upload) -->
+                <div class="portal-nav-switcher" style="margin-bottom: 20px;">
+                    <button class="portal-tab-btn active" id="tabFacultyRosterView">
+                        <i class="fa-solid fa-list-check"></i> Live Class Roster & Grades
+                    </button>
+                    <button class="portal-tab-btn" id="tabFacultyUploadView">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Upload & Extract Marksheet
+                    </button>
+                </div>
+
+                <!-- SUB-VIEW A: LIVE CLASS ROSTER & MANAGEMENT CONTAINER -->
+                <div id="facultyRosterContainer">
+
+                    <!-- Faculty Control Header Card -->
+                    <div class="card faculty-header-card">
+                        <div class="faculty-header-top">
+                            <div>
+                                <h3><i class="fa-solid fa-chalkboard-user"></i> Faculty Master Management Dashboard</h3>
+                                <p>Monitor live student submissions in MongoDB, audit marks, and export consolidated Master Excel</p>
+                            </div>
+                            <div class="faculty-action-group" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                <button class="btn btn-success btn-lg" id="btnHeaderFacultyUpload" title="Upload and extract student marksheet">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> Upload Marksheet
+                                </button>
+                                <button class="btn btn-outline" id="btnLockFacultySession" title="Lock Faculty Dashboard">
+                                    <i class="fa-solid fa-lock"></i> Lock Session
+                                </button>
+                                <button class="btn btn-primary btn-lg" id="btnOpenCreateClassModal">
+                                    <i class="fa-solid fa-circle-plus"></i> Create New Class / Exam
+                                </button>
+                            </div>
                         </div>
-                        <div class="faculty-action-group" style="display: flex; gap: 10px; align-items: center;">
-                            <button class="btn btn-outline" id="btnLockFacultySession" title="Lock Faculty Dashboard">
-                                <i class="fa-solid fa-lock"></i> Lock Session
-                            </button>
-                            <button class="btn btn-primary btn-lg" id="btnOpenCreateClassModal">
-                                <i class="fa-solid fa-circle-plus"></i> Create New Class / Exam
-                            </button>
+
+                        <!-- Classroom Selector & Master Export Action Strip -->
+                        <div class="faculty-class-strip">
+                            <div class="faculty-select-box" style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <label for="facultyClassroomSelect"><i class="fa-solid fa-filter"></i> Select Classroom Batch:</label>
+                                    <select id="facultyClassroomSelect" class="classroom-dropdown"></select>
+                                </div>
+
+                                <!-- Lock / Unlock Submission Toggle -->
+                                <div class="faculty-toggle-box">
+                                    <label class="switch-toggle-label" title="Enable or disable student uploads for this classroom">
+                                        <input type="checkbox" id="facultySubmissionToggle" checked>
+                                        <span class="slider-toggle"></span>
+                                    </label>
+                                    <span id="facultySubmissionStatusLabel" class="faculty-toggle-status status-open">
+                                        <i class="fa-solid fa-lock-open"></i> Submissions OPEN
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="master-export-btns">
+                                <button class="btn btn-success btn-lg" id="btnFacultyExportExcel">
+                                    <i class="fa-solid fa-file-excel"></i> Export Master Class Excel (.xlsx)
+                                </button>
+                                <button class="btn btn-info btn-lg" id="btnFacultyExportCsv">
+                                    <i class="fa-solid fa-file-csv"></i> Export Master CSV
+                                </button>
+                                <button class="btn btn-outline btn-lg" id="btnRefreshFacultyRoster" title="Refresh live roster from MongoDB Atlas">
+                                    <i class="fa-solid fa-rotate"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Overview Stats Cards Grid -->
+                        <div class="faculty-stats-grid">
+                            <div class="stat-card">
+                                <span class="stat-label"><i class="fa-solid fa-users"></i> Total Submissions</span>
+                                <strong class="stat-number" id="statTotalSubmissions">0</strong>
+                                <span class="stat-meta">Students submitted to MongoDB</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-label"><i class="fa-solid fa-chart-line"></i> Class Average</span>
+                                <strong class="stat-number" id="statClassAverage">0.0 / 20</strong>
+                                <span class="stat-meta">Mean total score</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-label"><i class="fa-solid fa-trophy"></i> Highest Score</span>
+                                <strong class="stat-number" id="statHighestScore">0 / 20</strong>
+                                <span class="stat-meta" id="statTopStudent">-</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-label"><i class="fa-solid fa-clock-rotate-left"></i> Latest Submission</span>
+                                <strong class="stat-number" id="statLatestTime" style="font-size: 1.05rem;">-</strong>
+                                <span class="stat-meta" id="statLatestStudent">-</span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Classroom Selector & Master Export Action Strip -->
-                    <div class="faculty-class-strip">
-                        <div class="faculty-select-box" style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <label for="facultyClassroomSelect"><i class="fa-solid fa-filter"></i> Select Classroom Batch:</label>
-                                <select id="facultyClassroomSelect" class="classroom-dropdown"></select>
+                    <!-- Live Class Roster Table Card -->
+                    <div class="card faculty-roster-card">
+                        <div class="roster-header">
+                            <div>
+                                <h4><i class="fa-solid fa-list-check"></i> Live Class Roster (Sorted by Roll Number)</h4>
+                                <p class="roster-subtitle">All student marksheets stored in MongoDB Atlas, ordered by natural numeric roll number</p>
                             </div>
-
-                            <!-- Lock / Unlock Submission Toggle -->
-                            <div class="faculty-toggle-box">
-                                <label class="switch-toggle-label" title="Enable or disable student uploads for this classroom">
-                                    <input type="checkbox" id="facultySubmissionToggle" checked>
-                                    <span class="slider-toggle"></span>
-                                </label>
-                                <span id="facultySubmissionStatusLabel" class="faculty-toggle-status status-open">
-                                    <i class="fa-solid fa-lock-open"></i> Submissions OPEN
-                                </span>
+                            <div class="roster-search-box">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="facultyRosterSearch" placeholder="Search by Student Name, Roll No, or PRN..." autocomplete="off" />
                             </div>
                         </div>
-                        <div class="master-export-btns">
-                            <button class="btn btn-success btn-lg" id="btnFacultyExportExcel">
-                                <i class="fa-solid fa-file-excel"></i> Export Master Class Excel (.xlsx)
-                            </button>
-                            <button class="btn btn-info btn-lg" id="btnFacultyExportCsv">
-                                <i class="fa-solid fa-file-csv"></i> Export Master CSV
-                            </button>
-                            <button class="btn btn-outline btn-lg" id="btnRefreshFacultyRoster" title="Refresh live roster from MongoDB Atlas">
-                                <i class="fa-solid fa-rotate"></i> Refresh
-                            </button>
-                        </div>
-                    </div>
 
-                    <!-- Overview Stats Cards Grid -->
-                    <div class="faculty-stats-grid">
-                        <div class="stat-card">
-                            <span class="stat-label"><i class="fa-solid fa-users"></i> Total Submissions</span>
-                            <strong class="stat-number" id="statTotalSubmissions">0</strong>
-                            <span class="stat-meta">Students submitted to MongoDB</span>
+                        <!-- Mobile Scroll Helper Pill -->
+                        <div class="mobile-table-hint">
+                            <i class="fa-solid fa-arrows-left-right"></i> Scroll horizontally to view full student grade breakdown
                         </div>
-                        <div class="stat-card">
-                            <span class="stat-label"><i class="fa-solid fa-chart-line"></i> Class Average</span>
-                            <strong class="stat-number" id="statClassAverage">0.0 / 20</strong>
-                            <span class="stat-meta">Mean total score</span>
-                        </div>
-                        <div class="stat-card">
-                            <span class="stat-label"><i class="fa-solid fa-trophy"></i> Highest Score</span>
-                            <strong class="stat-number" id="statHighestScore">0 / 20</strong>
-                            <span class="stat-meta" id="statTopStudent">-</span>
-                        </div>
-                        <div class="stat-card">
-                            <span class="stat-label"><i class="fa-solid fa-clock-rotate-left"></i> Latest Submission</span>
-                            <strong class="stat-number" id="statLatestTime" style="font-size: 1.05rem;">-</strong>
-                            <span class="stat-meta" id="statLatestStudent">-</span>
+
+                        <!-- Roster Table Scroll View -->
+                        <div class="table-scroll-container">
+                            <table class="roster-table" id="facultyRosterTable">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Roll No</th>
+                                        <th>PRN Number</th>
+                                        <th>Student Name</th>
+                                        <th>1a</th>
+                                        <th>1b</th>
+                                        <th>1c</th>
+                                        <th>1d</th>
+                                        <th>1e</th>
+                                        <th>1f</th>
+                                        <th>2a</th>
+                                        <th>2b</th>
+                                        <th>3a</th>
+                                        <th>3b</th>
+                                        <th>Total</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="facultyRosterTableBody">
+                                    <!-- Populated dynamically via JS -->
+                                </tbody>
+                            </table>
+                            <div class="roster-empty-state" id="rosterEmptyState" style="display:none;">
+                                <i class="fa-solid fa-clipboard-list"></i>
+                                <h4>No submissions yet for this classroom</h4>
+                                <p>Students can submit via Student Portal, or you can directly upload marksheets using the <strong>Upload Marksheet</strong> tab above.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Live Class Roster Table Card -->
-                <div class="card faculty-roster-card">
-                    <div class="roster-header">
-                        <div>
-                            <h4><i class="fa-solid fa-list-check"></i> Live Class Roster (Sorted by Roll Number)</h4>
-                            <p class="roster-subtitle">All student marksheets stored in MongoDB Atlas, ordered by natural numeric roll number</p>
-                        </div>
-                        <div class="roster-search-box">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" id="facultyRosterSearch" placeholder="Search by Student Name, Roll No, or PRN..." autocomplete="off" />
+                <!-- SUB-VIEW B: FACULTY DIRECT MARKSHEET UPLOAD & EXTRACTION CONTAINER -->
+                <div id="facultyUploadContainer" style="display: none;">
+
+                    <!-- Active Target Classroom Info Banner -->
+                    <div class="classroom-select-banner" style="margin-bottom: 20px;">
+                        <div class="classroom-banner-info" style="width: 100%; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+                            <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 280px;">
+                                <label for="facultyUploadClassroomSelect"><i class="fa-solid fa-school"></i> Uploading To Batch:</label>
+                                <select id="facultyUploadClassroomSelect" class="classroom-dropdown" style="flex: 1; max-width: 440px;">
+                                    <!-- Populated dynamically -->
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <span class="submission-status-badge status-open" style="background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE;">
+                                    <i class="fa-solid fa-user-shield"></i> Faculty Direct Mode (Lock Bypass)
+                                </span>
+                                <button class="btn btn-sm btn-outline" id="btnBackToFacultyRoster">
+                                    <i class="fa-solid fa-arrow-left"></i> View Live Roster
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Mobile Scroll Helper Pill -->
-                    <div class="mobile-table-hint">
-                        <i class="fa-solid fa-arrows-left-right"></i> Scroll horizontally to view full student grade breakdown
+                    <!-- Faculty Upload Card: Dropzone & File Controls -->
+                    <div class="card main-upload-card">
+
+                        <!-- Dropzone Area -->
+                        <div class="dropzone" id="facultyDropZone">
+                            <input type="file" id="facultyFileInput"
+                                accept=".pdf,.png,.jpg,.jpeg,.webp,.tiff,.bmp,.gif,image/*,application/pdf"
+                                multiple
+                                style="display:none;">
+                            <input type="file" id="facultyCameraInput"
+                                accept="image/*"
+                                capture="environment"
+                                style="display:none;">
+
+                            <div class="drop-icon">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                            </div>
+                            <h3>Upload or Snap Student Marksheets (Up to 10 at once)</h3>
+                            <p class="drop-subtitle">Select multiple images or PDFs to batch extract student answer sheets (<strong>PDF, PNG, JPEG</strong>)</p>
+                            
+                            <div class="upload-btn-group">
+                                <button class="btn btn-primary btn-lg" id="btnFacultySnapCamera" type="button">
+                                    <i class="fa-solid fa-camera"></i> Snap with Camera
+                                </button>
+                                <button class="btn btn-outline btn-lg" id="btnFacultyChooseFile" type="button">
+                                    <i class="fa-solid fa-folder-open"></i> Browse Marksheets (Select up to 10)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Batch Upload Queue Bar (When files are selected) -->
+                        <div class="batch-queue-container" id="facultyBatchQueueContainer" style="display: none;">
+                            <div class="batch-queue-header">
+                                <h4>
+                                    <i class="fa-solid fa-layer-group"></i> Marksheets Upload Queue
+                                </h4>
+                                <span class="batch-queue-badge" id="lblBatchQueueCount">0 / 10 Marksheets</span>
+                            </div>
+                            
+                            <!-- List of file chips -->
+                            <div class="batch-file-chips" id="facultyBatchChipsContainer"></div>
+
+                            <div class="batch-queue-actions">
+                                <button class="btn btn-sm btn-outline" id="btnFacultyAddMoreFiles" type="button">
+                                    <i class="fa-solid fa-plus"></i> Add More Sheets
+                                </button>
+                                <button class="btn btn-sm btn-danger-outline" id="btnFacultyClearBatch" type="button">
+                                    <i class="fa-solid fa-trash-can"></i> Clear Queue
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Loaded Single File Header Bar (Fallback for single selection) -->
+                        <div class="file-preview-bar" id="facultyFilePreviewBar" style="display: none;">
+                            <div class="file-info">
+                                <div class="file-icon-badge">
+                                    <i class="fa-solid fa-file-invoice"></i>
+                                </div>
+                                <div>
+                                    <strong id="lblFacultyFileName">marksheet_sample.jpeg</strong>
+                                    <span class="file-meta" id="lblFacultyFileMeta">JPEG File • 1 Page(s) • (1204×1600px)</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-outline" id="btnFacultyChangeFile">Change File</button>
+                        </div>
+
+                        <!-- Crop Control Toolbar Strip -->
+                        <div class="crop-control-strip" id="facultyCropControlStrip" style="display: none;">
+                            <button class="btn btn-pill-outline" id="btnFacultyAutoCrop">
+                                <i class="fa-solid fa-arrows-to-eye"></i> Auto Crop Page
+                            </button>
+                            <button class="btn btn-pill-outline active" id="btnFacultyManualCrop">
+                                <i class="fa-solid fa-hand"></i> Manual Crop
+                            </button>
+                            <button class="btn btn-pill-outline" id="btnFacultyClearCrop">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> Clear Crop
+                            </button>
+                        </div>
+
+                        <!-- Recognition Engine Display (Hybrid Pipeline) -->
+                        <div class="engine-selector-card">
+                            <div class="engine-selector-header">
+                                <div>
+                                    <h4><i class="fa-solid fa-microchip"></i> Recognition Engine</h4>
+                                    <span class="engine-subtitle">Multi-Tier Edge-Cloud Hybrid System (OpenCV Grayscale + Gemini Layout + Local PyTorch CNN)</span>
+                                </div>
+                                <span class="badge-academic" title="Edge-First Local OCR with Cloud Vision AI Refinement">
+                                    <i class="fa-solid fa-bolt"></i> Hybrid AI Active
+                                </span>
+                            </div>
+
+                            <div class="engine-options-grid" style="grid-template-columns: 1fr;">
+                                <label class="engine-radio-card active" style="cursor: default;">
+                                    <input type="radio" checked style="display:none;">
+                                    <div class="engine-icon"><i class="fa-solid fa-bolt"></i></div>
+                                    <div class="engine-details">
+                                        <strong>Hybrid Multimodal Engine (Fast & Accurate)</strong>
+                                        <p>Fast AI layout detection with 99.55% PyTorch digit recognition & zero hallucination cell sparsity.</p>
+                                        <span class="engine-tag tag-hybrid">Speed ~1.5s • Batch Processing Ready</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Faculty Convert Button -->
+                        <button class="btn btn-primary btn-xl btn-block" id="btnFacultyConvert" disabled>
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Convert & Extract Numbers
+                        </button>
                     </div>
 
-                    <!-- Roster Table Scroll View -->
-                    <div class="table-scroll-container">
-                        <table class="roster-table" id="facultyRosterTable">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Roll No</th>
-                                    <th>PRN Number</th>
-                                    <th>Student Name</th>
-                                    <th>1a</th>
-                                    <th>1b</th>
-                                    <th>1c</th>
-                                    <th>1d</th>
-                                    <th>1e</th>
-                                    <th>1f</th>
-                                    <th>2a</th>
-                                    <th>2b</th>
-                                    <th>3a</th>
-                                    <th>3b</th>
-                                    <th>Total</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="facultyRosterTableBody">
-                                <!-- Populated dynamically via JS -->
-                            </tbody>
-                        </table>
-                        <div class="roster-empty-state" id="rosterEmptyState" style="display:none;">
-                            <i class="fa-solid fa-clipboard-list"></i>
-                            <h4>No submissions yet for this classroom</h4>
-                            <p>Students can switch to the Student Portal to upload and submit their answer sheets to this class.</p>
+                    <!-- Faculty Interactive Page Crop Preview Card -->
+                    <div class="card preview-card" id="facultyPageCropPreviewCard" style="display: none;">
+                        <div class="card-header-flex">
+                            <div>
+                                <h3><i class="fa-solid fa-crop-simple"></i> Page Crop Preview & Table ROI</h3>
+                                <p>Auto detect the page or adjust the orange crop box like a scanner app.</p>
+                            </div>
+                            <div class="crop-badge-container">
+                                <span class="badge-crop" id="facultyCropBadge">Full page: 1204 × 1600</span>
+                            </div>
+                        </div>
+
+                        <!-- Scrollable Viewport Container -->
+                        <div class="crop-viewport-wrapper">
+                            <div class="crop-viewport" id="facultyCropViewport">
+                                <div class="crop-stage" id="facultyCropStage">
+                                    <img id="facultyPreviewImage" alt="Faculty Page Crop Preview" src="" />
+
+                                    <!-- Interactive Orange Crop Box Overlay -->
+                                    <div class="crop-box" id="facultyCropBox">
+                                        <div class="crop-handle handle-nw" data-handle="nw"></div>
+                                        <div class="crop-handle handle-ne" data-handle="ne"></div>
+                                        <div class="crop-handle handle-sw" data-handle="sw"></div>
+                                        <div class="crop-handle handle-se" data-handle="se"></div>
+                                        <div class="crop-handle handle-n" data-handle="n"></div>
+                                        <div class="crop-handle handle-s" data-handle="s"></div>
+                                        <div class="crop-handle handle-w" data-handle="w"></div>
+                                        <div class="crop-handle handle-e" data-handle="e"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="scroll-arrow arrow-top"><i class="fa-solid fa-caret-up"></i></div>
+                            <div class="scroll-arrow arrow-bottom"><i class="fa-solid fa-caret-down"></i></div>
+                        </div>
+                    </div>
+
+                    <!-- Faculty Extracted Excel Grid Card -->
+                    <div class="card result-card" id="facultyResultCard" style="display: none;">
+
+                        <!-- Result Header & Downloads -->
+                        <div class="result-header">
+                            <div>
+                                <h3><i class="fa-solid fa-table-cells"></i> Extracted Marksheet & Table Grid</h3>
+                                <p>Review or edit any student details or marks before committing to Class Roster</p>
+                            </div>
+
+                            <div class="download-group" style="flex-wrap: wrap;">
+                                <button class="btn btn-success btn-lg" id="btnFacultySubmitAllToDb" style="background: #16A34A; border-color: #15803D;">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> Commit All to Database (<span id="lblBatchUploadAllCount">1</span> Marksheets)
+                                </button>
+                                <button class="btn btn-outline btn-lg" id="btnFacultySubmitToDb" title="Save current student marksheet only">
+                                    <i class="fa-solid fa-user-check"></i> Save Current Sheet
+                                </button>
+                                <button class="btn btn-outline btn-lg" id="btnFacultyNewBatch" title="Clear current batch and upload new marksheets">
+                                    <i class="fa-solid fa-rotate-left"></i> Upload New Batch
+                                </button>
+                                <button class="btn btn-outline btn-lg" id="btnFacultySingleExportExcel">
+                                    <i class="fa-solid fa-file-excel"></i> Download Excel (.xlsx)
+                                </button>
+                                <button class="btn btn-outline btn-lg" id="btnFacultySingleExportCsv">
+                                    <i class="fa-solid fa-file-csv"></i> Download CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Collapsible Marksheet Paper Scan Viewer -->
+                        <div class="batch-image-preview-card" id="batchImagePreviewCard">
+                            <div class="batch-image-preview-header" id="btnToggleBatchScanPreview">
+                                <h5>
+                                    <i class="fa-solid fa-image"></i> Original Marksheet Paper Scan (Student Reference)
+                                </h5>
+                                <button class="btn btn-sm btn-outline" type="button" style="pointer-events: none;">
+                                    <i class="fa-solid fa-eye" id="iconToggleScan"></i> View / Hide Scan
+                                </button>
+                            </div>
+                            <div class="batch-image-preview-body" id="batchImagePreviewBody">
+                                <img id="batchScanImg" alt="Marksheet Scan" src="" />
+                            </div>
+                        </div>
+
+                        <!-- Student & Marksheet Metadata Header Banner (Interactive & Editable) -->
+                        <div class="metadata-banner-card" id="facultyMetadataBannerCard">
+                            <div class="metadata-banner-header">
+                                <h4>
+                                    <i class="fa-solid fa-id-card"></i> Student & Document Metadata
+                                    <span class="meta-edit-badge"><i class="fa-solid fa-pen-to-square"></i> Editable Fields</span>
+                                </h4>
+                                <span class="badge-verified"><i class="fa-solid fa-circle-check"></i> Marks Verified</span>
+                            </div>
+                            <p class="meta-hint-text">Review and edit any student information before committing to database</p>
+                            <div class="metadata-grid">
+                                <div class="meta-item meta-item-name">
+                                    <label class="meta-label" for="facultyMetaStudentName"><i class="fa-solid fa-user"></i> Student Name</label>
+                                    <input type="text" class="meta-input" id="facultyMetaStudentName" placeholder="e.g. MAHADIK SHRUTIKA ANIL" title="Click to edit student name" autocomplete="off" />
+                                </div>
+                                <div class="meta-item">
+                                    <label class="meta-label" for="facultyMetaPRN"><i class="fa-solid fa-hashtag"></i> PRN Number</label>
+                                    <input type="text" class="meta-input" id="facultyMetaPRN" placeholder="e.g. 241051032" title="Click to edit PRN number" autocomplete="off" />
+                                </div>
+                                <div class="meta-item">
+                                    <label class="meta-label" for="facultyMetaRollNo"><i class="fa-solid fa-list-ol"></i> Roll No</label>
+                                    <input type="text" class="meta-input" id="facultyMetaRollNo" placeholder="e.g. SE-46" title="Click to edit Roll No" autocomplete="off" />
+                                </div>
+                                <div class="meta-item">
+                                    <label class="meta-label" for="facultyMetaBranch"><i class="fa-solid fa-code-branch"></i> Branch / Dept</label>
+                                    <input type="text" class="meta-input" id="facultyMetaBranch" placeholder="e.g. IT" title="Click to edit Branch" autocomplete="off" />
+                                </div>
+                                <div class="meta-item">
+                                    <label class="meta-label" for="facultyMetaDivision"><i class="fa-solid fa-layer-group"></i> Division</label>
+                                    <input type="text" class="meta-input" id="facultyMetaDivision" placeholder="e.g. SE/B3" title="Click to edit Division" autocomplete="off" />
+                                </div>
+                                <div class="meta-item">
+                                    <label class="meta-label" for="facultyMetaSemester"><i class="fa-solid fa-graduation-cap"></i> Semester</label>
+                                    <input type="text" class="meta-input" id="facultyMetaSemester" placeholder="e.g. Sem IV" title="Click to edit Semester" autocomplete="off" />
+                                </div>
+                                <div class="meta-item">
+                                    <label class="meta-label" for="facultyMetaSubject"><i class="fa-solid fa-book"></i> Subject</label>
+                                    <input type="text" class="meta-input" id="facultyMetaSubject" placeholder="e.g. CNND" title="Click to edit Subject" autocomplete="off" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Section Tabs -->
+                        <div class="section-tabs" id="facultySectionTabsBar"></div>
+
+                        <!-- Mobile Scroll Helper Pill -->
+                        <div class="mobile-table-hint">
+                            <i class="fa-solid fa-arrows-left-right"></i> Scroll horizontally to view all question marks
+                        </div>
+
+                        <!-- Editable Spreadsheet Table View -->
+                        <div class="table-scroll-container">
+                            <table class="excel-table">
+                                <thead id="facultyTableHead"></thead>
+                                <tbody id="facultyTableBody"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Grid Editing Toolbar -->
+                        <div class="grid-tools">
+                            <button class="btn btn-sm btn-outline" id="btnAddFacultyRow"><i class="fa-solid fa-plus"></i> Add Row</button>
+                            <button class="btn btn-sm btn-outline" id="btnAddFacultyCol"><i class="fa-solid fa-plus"></i> Add Column</button>
+                            <button class="btn btn-sm btn-danger-outline" id="btnClearFacultyGrid"><i class="fa-solid fa-trash-can"></i> Clear Table</button>
+                        </div>
+
+                        <!-- Batch Verification Carousel / Stepper Section (Bottom Placement) -->
+                        <div class="batch-verification-toolbar" id="batchVerificationToolbar" style="margin-top: 24px;">
+                            <div class="batch-nav-group">
+                                <button class="btn btn-outline" id="btnBatchPrevStudent" title="Go to previous student">
+                                    <i class="fa-solid fa-chevron-left"></i> Previous Student
+                                </button>
+                                
+                                <div class="batch-counter-box">
+                                    <span class="batch-counter-title">
+                                        Student <strong id="batchCurrentIndexLabel">1</strong> of <strong id="batchTotalCountLabel">1</strong>
+                                    </span>
+                                    <span class="batch-student-pill" id="batchCurrentStudentPill">
+                                        <i class="fa-solid fa-user-graduate"></i>
+                                        <span id="batchCurrentStudentName">STUDENT NAME</span>
+                                        <span style="color:#94A3B8;">|</span>
+                                        Roll: <span id="batchCurrentStudentRoll">--</span>
+                                    </span>
+                                    <span class="batch-verify-status-badge pending" id="batchVerifyBadge">
+                                        <i class="fa-solid fa-clock"></i> Pending Verification
+                                    </span>
+                                </div>
+
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn btn-primary" id="btnBatchVerifyAndNext" title="Verify current student and go to next student">
+                                        Verify &amp; Next <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Stepper Quick-Jump Pills (1, 2, 3...) -->
+                            <div class="batch-stepper-pills" id="batchStepperContainer"></div>
                         </div>
                     </div>
                 </div>

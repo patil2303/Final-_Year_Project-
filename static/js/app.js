@@ -270,6 +270,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const facultyEmptyOpt = '<option value="">-- No Classes Created Yet (Click "+ Create New Class / Exam" above) --</option>';
             if (studentClassroomSelect) studentClassroomSelect.innerHTML = studentEmptyOpt;
             if (facultyClassroomSelect) facultyClassroomSelect.innerHTML = facultyEmptyOpt;
+            const facultyUploadClassroomSelect = document.getElementById('facultyUploadClassroomSelect');
+            if (facultyUploadClassroomSelect) facultyUploadClassroomSelect.innerHTML = facultyEmptyOpt;
             return;
         }
 
@@ -285,10 +287,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (studentClassroomSelect) studentClassroomSelect.innerHTML = studentOpts.join('');
         if (facultyClassroomSelect) facultyClassroomSelect.innerHTML = facultyOpts.join('');
+        const facultyUploadClassroomSelect = document.getElementById('facultyUploadClassroomSelect');
+        if (facultyUploadClassroomSelect) facultyUploadClassroomSelect.innerHTML = facultyOpts.join('');
 
         if (selectedId) {
             if (studentClassroomSelect) studentClassroomSelect.value = selectedId;
             if (facultyClassroomSelect) facultyClassroomSelect.value = selectedId;
+            if (facultyUploadClassroomSelect) facultyUploadClassroomSelect.value = selectedId;
         }
 
         const activeStudentId = studentClassroomSelect ? studentClassroomSelect.value : null;
@@ -940,8 +945,8 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function extractQuestionMarksFromGrid() {
-        const sections = spreadsheetEditor.getSections();
+    function extractQuestionMarksFromGrid(customEditor = spreadsheetEditor) {
+        const sections = customEditor.getSections();
         if (!sections || sections.length === 0) return {};
 
         const sec = sections[0];
@@ -1398,6 +1403,1163 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function hideLoading() {
         loadingOverlay.style.display = 'none';
+    }
+
+    // ------------------------------------------------------------------
+    // 9. Faculty Marksheet Upload & AI Data Extraction
+    // ------------------------------------------------------------------
+    const facultySpreadsheetEditor = new SpreadsheetEditorController(
+        'facultySectionTabsBar',
+        'facultyTableHead',
+        'facultyTableBody'
+    );
+
+    // Faculty Upload State
+    let currentFacultyUploadedData = null;
+    let originalFacultyImgWidth = 1204;
+    let originalFacultyImgHeight = 1600;
+    let currentFacultyCropRect = null;
+    let isFacultyAutoCropped = false;
+    let lastFacultyExtractedMetadata = null;
+
+    // Faculty Navigation & Containers
+    const tabFacultyRosterView = document.getElementById('tabFacultyRosterView');
+    const tabFacultyUploadView = document.getElementById('tabFacultyUploadView');
+    const facultyRosterContainer = document.getElementById('facultyRosterContainer');
+    const facultyUploadContainer = document.getElementById('facultyUploadContainer');
+    const btnHeaderFacultyUpload = document.getElementById('btnHeaderFacultyUpload');
+    const btnBackToFacultyRoster = document.getElementById('btnBackToFacultyRoster');
+    const facultyUploadClassroomSelect = document.getElementById('facultyUploadClassroomSelect');
+
+    // Faculty Upload Controls
+    const facultyDropZone = document.getElementById('facultyDropZone');
+    const facultyFileInput = document.getElementById('facultyFileInput');
+    const facultyCameraInput = document.getElementById('facultyCameraInput');
+    const btnFacultySnapCamera = document.getElementById('btnFacultySnapCamera');
+    const btnFacultyChooseFile = document.getElementById('btnFacultyChooseFile');
+    const facultyFilePreviewBar = document.getElementById('facultyFilePreviewBar');
+    const lblFacultyFileName = document.getElementById('lblFacultyFileName');
+    const lblFacultyFileMeta = document.getElementById('lblFacultyFileMeta');
+    const btnFacultyChangeFile = document.getElementById('btnFacultyChangeFile');
+
+    // Faculty Crop Controls
+    const facultyCropControlStrip = document.getElementById('facultyCropControlStrip');
+    const btnFacultyAutoCrop = document.getElementById('btnFacultyAutoCrop');
+    const btnFacultyManualCrop = document.getElementById('btnFacultyManualCrop');
+    const btnFacultyClearCrop = document.getElementById('btnFacultyClearCrop');
+
+    const facultyPageCropPreviewCard = document.getElementById('facultyPageCropPreviewCard');
+    const facultyCropBadge = document.getElementById('facultyCropBadge');
+    const facultyCropStage = document.getElementById('facultyCropStage');
+    const facultyPreviewImage = document.getElementById('facultyPreviewImage');
+    const facultyCropBox = document.getElementById('facultyCropBox');
+
+    // Faculty Action & Results
+    const btnFacultyConvert = document.getElementById('btnFacultyConvert');
+    const facultyResultCard = document.getElementById('facultyResultCard');
+    const btnFacultySubmitToDb = document.getElementById('btnFacultySubmitToDb');
+    const btnFacultySingleExportExcel = document.getElementById('btnFacultySingleExportExcel');
+    const btnFacultySingleExportCsv = document.getElementById('btnFacultySingleExportCsv');
+
+    const btnAddFacultyRow = document.getElementById('btnAddFacultyRow');
+    const btnAddFacultyCol = document.getElementById('btnAddFacultyCol');
+    const btnClearFacultyGrid = document.getElementById('btnClearFacultyGrid');
+
+    // Faculty Sub-View Switcher
+    function switchFacultySubView(view) {
+        if (view === 'roster') {
+            if (tabFacultyRosterView) tabFacultyRosterView.classList.add('active');
+            if (tabFacultyUploadView) tabFacultyUploadView.classList.remove('active');
+            if (facultyRosterContainer) facultyRosterContainer.style.display = 'block';
+            if (facultyUploadContainer) facultyUploadContainer.style.display = 'none';
+            loadFacultyRoster();
+        } else {
+            if (tabFacultyUploadView) tabFacultyUploadView.classList.add('active');
+            if (tabFacultyRosterView) tabFacultyRosterView.classList.remove('active');
+            if (facultyRosterContainer) facultyRosterContainer.style.display = 'none';
+            if (facultyUploadContainer) facultyUploadContainer.style.display = 'block';
+
+            if (facultyUploadClassroomSelect && facultyClassroomSelect) {
+                facultyUploadClassroomSelect.value = facultyClassroomSelect.value;
+            }
+        }
+    }
+
+    if (tabFacultyRosterView) tabFacultyRosterView.addEventListener('click', () => switchFacultySubView('roster'));
+    if (tabFacultyUploadView) tabFacultyUploadView.addEventListener('click', () => switchFacultySubView('upload'));
+    if (btnHeaderFacultyUpload) btnHeaderFacultyUpload.addEventListener('click', () => switchFacultySubView('upload'));
+    if (btnBackToFacultyRoster) btnBackToFacultyRoster.addEventListener('click', () => switchFacultySubView('roster'));
+
+    if (facultyUploadClassroomSelect) {
+        facultyUploadClassroomSelect.addEventListener('change', () => {
+            if (facultyClassroomSelect) {
+                facultyClassroomSelect.value = facultyUploadClassroomSelect.value;
+                updateFacultyToggleState(facultyUploadClassroomSelect.value);
+            }
+        });
+    }
+
+    // Faculty Crop Handlers
+    let fStageRect = { width: 1, height: 1 };
+    let fCropPos = { left: 0, top: 0, width: 0, height: 0 };
+    let fIsDragging = false;
+    let fIsResizing = false;
+    let fCurrentHandle = null;
+    let fStartMousePos = { x: 0, y: 0 };
+    let fStartCropPos = { left: 0, top: 0, width: 0, height: 0 };
+
+    function initFacultyCropOverlay() {
+        if (!facultyCropStage) return;
+        fStageRect = facultyCropStage.getBoundingClientRect();
+        const defaultW = fStageRect.width * 0.85;
+        const defaultH = fStageRect.height * 0.25;
+        const defaultL = (fStageRect.width - defaultW) / 2;
+        const defaultT = (fStageRect.height - defaultH) / 3;
+        setFacultyCropPosPx(defaultL, defaultT, defaultW, defaultH);
+    }
+
+    function setFacultyCropPosPx(left, top, width, height) {
+        if (!facultyCropStage || !facultyCropBox) return;
+        fStageRect = facultyCropStage.getBoundingClientRect();
+        if (fStageRect.width === 0 || fStageRect.height === 0) return;
+
+        left = Math.max(0, Math.min(left, fStageRect.width - 20));
+        top = Math.max(0, Math.min(top, fStageRect.height - 20));
+        width = Math.max(20, Math.min(width, fStageRect.width - left));
+        height = Math.max(20, Math.min(height, fStageRect.height - top));
+
+        fCropPos = { left, top, width, height };
+
+        facultyCropBox.style.left = `${left}px`;
+        facultyCropBox.style.top = `${top}px`;
+        facultyCropBox.style.width = `${width}px`;
+        facultyCropBox.style.height = `${height}px`;
+
+        const scaleX = originalFacultyImgWidth / fStageRect.width;
+        const scaleY = originalFacultyImgHeight / fStageRect.height;
+
+        const origX = Math.round(left * scaleX);
+        const origY = Math.round(top * scaleY);
+        const origW = Math.round(width * scaleX);
+        const origH = Math.round(height * scaleY);
+
+        currentFacultyCropRect = { x: origX, y: origY, width: origW, height: origH };
+
+        if (facultyCropBadge) {
+            const modePrefix = isFacultyAutoCropped ? 'Auto crop:' : 'Manual crop:';
+            facultyCropBadge.innerText = `${modePrefix} ${origW} × ${origH}`;
+        }
+    }
+
+    function setFacultyActiveCropButton(activeBtn) {
+        [btnFacultyAutoCrop, btnFacultyManualCrop, btnFacultyClearCrop].forEach(btn => {
+            if (btn) btn.classList.remove('active');
+        });
+        if (activeBtn) activeBtn.classList.add('active');
+    }
+
+    async function triggerFacultyAutoCrop() {
+        if (!currentFacultyUploadedData || !currentFacultyUploadedData.image_b64) return;
+        setFacultyActiveCropButton(btnFacultyAutoCrop);
+
+        try {
+            const res = await fetch('/api/autocrop', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_b64: currentFacultyUploadedData.image_b64 })
+            });
+
+            const data = await res.json();
+            if (data.status === 'success' && data.crop) {
+                isFacultyAutoCropped = true;
+                const crop = data.crop;
+                fStageRect = facultyCropStage.getBoundingClientRect();
+                const scaleX = fStageRect.width / originalFacultyImgWidth;
+                const scaleY = fStageRect.height / originalFacultyImgHeight;
+
+                setFacultyCropPosPx(
+                    crop.x * scaleX,
+                    crop.y * scaleY,
+                    crop.width * scaleX,
+                    crop.height * scaleY
+                );
+            }
+        } catch (err) {
+            console.warn("Faculty auto crop request failed, using manual crop box.", err);
+        }
+    }
+
+    if (btnFacultyAutoCrop) {
+        btnFacultyAutoCrop.addEventListener('click', () => triggerFacultyAutoCrop());
+    }
+
+    if (btnFacultyManualCrop) {
+        btnFacultyManualCrop.addEventListener('click', () => {
+            isFacultyAutoCropped = false;
+            setFacultyActiveCropButton(btnFacultyManualCrop);
+            if (currentFacultyCropRect && facultyCropBadge) {
+                facultyCropBadge.innerText = `Manual crop: ${currentFacultyCropRect.width} × ${currentFacultyCropRect.height}`;
+            }
+        });
+    }
+
+    if (btnFacultyClearCrop) {
+        btnFacultyClearCrop.addEventListener('click', () => {
+            isFacultyAutoCropped = false;
+            setFacultyActiveCropButton(btnFacultyClearCrop);
+            if (facultyCropStage) {
+                fStageRect = facultyCropStage.getBoundingClientRect();
+                setFacultyCropPosPx(0, 0, fStageRect.width, fStageRect.height);
+                if (facultyCropBadge) facultyCropBadge.innerText = `Full page: ${originalFacultyImgWidth} × ${originalFacultyImgHeight}`;
+            }
+        });
+    }
+
+    // Faculty Crop Box Listeners
+    if (facultyCropBox) {
+        facultyCropBox.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('crop-handle')) {
+                fIsResizing = true;
+                fCurrentHandle = e.target.getAttribute('data-handle');
+            } else {
+                fIsDragging = true;
+            }
+
+            isFacultyAutoCropped = false;
+            setFacultyActiveCropButton(btnFacultyManualCrop);
+
+            fStartMousePos = { x: e.clientX, y: e.clientY };
+            fStartCropPos = { ...fCropPos };
+            e.stopPropagation();
+            e.preventDefault();
+        });
+
+        facultyCropBox.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) return;
+            const touch = e.touches[0];
+            if (e.target.classList.contains('crop-handle')) {
+                fIsResizing = true;
+                fCurrentHandle = e.target.getAttribute('data-handle');
+            } else {
+                fIsDragging = true;
+            }
+
+            isFacultyAutoCropped = false;
+            setFacultyActiveCropButton(btnFacultyManualCrop);
+
+            fStartMousePos = { x: touch.clientX, y: touch.clientY };
+            fStartCropPos = { ...fCropPos };
+            e.stopPropagation();
+        });
+    }
+
+    document.addEventListener('mousemove', (e) => {
+        if (!fIsDragging && !fIsResizing) return;
+
+        const dx = e.clientX - fStartMousePos.x;
+        const dy = e.clientY - fStartMousePos.y;
+
+        if (fIsDragging) {
+            setFacultyCropPosPx(
+                fStartCropPos.left + dx,
+                fStartCropPos.top + dy,
+                fStartCropPos.width,
+                fStartCropPos.height
+            );
+        } else if (fIsResizing && fCurrentHandle) {
+            let nL = fStartCropPos.left;
+            let nT = fStartCropPos.top;
+            let nW = fStartCropPos.width;
+            let nH = fStartCropPos.height;
+
+            if (fCurrentHandle.includes('e')) nW = fStartCropPos.width + dx;
+            if (fCurrentHandle.includes('s')) nH = fStartCropPos.height + dy;
+            if (fCurrentHandle.includes('w')) {
+                nW = fStartCropPos.width - dx;
+                nL = fStartCropPos.left + dx;
+            }
+            if (fCurrentHandle.includes('n')) {
+                nH = fStartCropPos.height - dy;
+                nT = fStartCropPos.top + dy;
+            }
+
+            setFacultyCropPosPx(nL, nT, nW, nH);
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        fIsDragging = false;
+        fIsResizing = false;
+        fCurrentHandle = null;
+    });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!fIsDragging && !fIsResizing) return;
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+
+        const dx = touch.clientX - fStartMousePos.x;
+        const dy = touch.clientY - fStartMousePos.y;
+
+        if (fIsDragging) {
+            setFacultyCropPosPx(
+                fStartCropPos.left + dx,
+                fStartCropPos.top + dy,
+                fStartCropPos.width,
+                fStartCropPos.height
+            );
+        } else if (fIsResizing && fCurrentHandle) {
+            let nL = fStartCropPos.left;
+            let nT = fStartCropPos.top;
+            let nW = fStartCropPos.width;
+            let nH = fStartCropPos.height;
+
+            if (fCurrentHandle.includes('e')) nW = fStartCropPos.width + dx;
+            if (fCurrentHandle.includes('s')) nH = fStartCropPos.height + dy;
+            if (fCurrentHandle.includes('w')) {
+                nW = fStartCropPos.width - dx;
+                nL = fStartCropPos.left + dx;
+            }
+            if (fCurrentHandle.includes('n')) {
+                nH = fStartCropPos.height - dy;
+                nT = fStartCropPos.top + dy;
+            }
+
+            setFacultyCropPosPx(nL, nT, nW, nH);
+        }
+    });
+
+    document.addEventListener('touchend', () => {
+        fIsDragging = false;
+        fIsResizing = false;
+        fCurrentHandle = null;
+    });
+
+    window.addEventListener('resize', () => {
+        if (currentFacultyUploadedData && currentFacultyCropRect && facultyCropStage) {
+            fStageRect = facultyCropStage.getBoundingClientRect();
+            const scaleX = fStageRect.width / originalFacultyImgWidth;
+            const scaleY = fStageRect.height / originalFacultyImgHeight;
+            setFacultyCropPosPx(
+                currentFacultyCropRect.x * scaleX,
+                currentFacultyCropRect.y * scaleY,
+                currentFacultyCropRect.width * scaleX,
+                currentFacultyCropRect.height * scaleY
+            );
+        }
+    });
+
+    // ------------------------------------------------------------------
+    // Batch Upload & Verification Carousel State
+    // ------------------------------------------------------------------
+    let facultySelectedFiles = []; // Array of File objects (up to 10)
+    let facultyBatchResults = [];  // Array of extracted marksheet objects
+    let currentBatchIndex = 0;     // Currently viewed student index
+
+    // Batch UI Elements
+    const facultyBatchQueueContainer = document.getElementById('facultyBatchQueueContainer');
+    const lblBatchQueueCount = document.getElementById('lblBatchQueueCount');
+    const facultyBatchChipsContainer = document.getElementById('facultyBatchChipsContainer');
+    const btnFacultyAddMoreFiles = document.getElementById('btnFacultyAddMoreFiles');
+    const btnFacultyClearBatch = document.getElementById('btnFacultyClearBatch');
+
+    const batchVerificationToolbar = document.getElementById('batchVerificationToolbar');
+    const btnBatchPrevStudent = document.getElementById('btnBatchPrevStudent');
+    const btnBatchNextStudent = document.getElementById('btnBatchNextStudent');
+    const batchCurrentIndexLabel = document.getElementById('batchCurrentIndexLabel');
+    const batchTotalCountLabel = document.getElementById('batchTotalCountLabel');
+    const batchCurrentStudentName = document.getElementById('batchCurrentStudentName');
+    const batchCurrentStudentRoll = document.getElementById('batchCurrentStudentRoll');
+    const batchVerifyBadge = document.getElementById('batchVerifyBadge');
+    const btnBatchVerifyAndNext = document.getElementById('btnBatchVerifyAndNext');
+    const batchStepperContainer = document.getElementById('batchStepperContainer');
+    const btnFacultySubmitAllToDb = document.getElementById('btnFacultySubmitAllToDb');
+    const lblBatchUploadAllCount = document.getElementById('lblBatchUploadAllCount');
+
+    const batchImagePreviewCard = document.getElementById('batchImagePreviewCard');
+    const btnToggleBatchScanPreview = document.getElementById('btnToggleBatchScanPreview');
+    const batchImagePreviewBody = document.getElementById('batchImagePreviewBody');
+    const batchScanImg = document.getElementById('batchScanImg');
+    const iconToggleScan = document.getElementById('iconToggleScan');
+
+    // ------------------------------------------------------------------
+    // Batch File Selection & Queue Management (Up to 10 Marksheets)
+    // ------------------------------------------------------------------
+    function formatFileSize(bytes) {
+        if (!bytes || bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function renderFacultyBatchQueue() {
+        if (!facultyBatchQueueContainer || !facultyBatchChipsContainer) return;
+
+        if (facultySelectedFiles.length === 0) {
+            facultyBatchQueueContainer.style.display = 'none';
+            if (facultyDropZone) facultyDropZone.style.display = 'block';
+            if (btnFacultyConvert) {
+                btnFacultyConvert.disabled = true;
+                btnFacultyConvert.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Convert & Extract Numbers';
+            }
+            return;
+        }
+
+        facultyBatchQueueContainer.style.display = 'block';
+        if (facultyDropZone) facultyDropZone.style.display = 'none';
+
+        if (lblBatchQueueCount) {
+            lblBatchQueueCount.innerText = `${facultySelectedFiles.length} / 10 Marksheets Selected`;
+        }
+
+        // Render file chips
+        facultyBatchChipsContainer.innerHTML = '';
+        facultySelectedFiles.forEach((file, idx) => {
+            const chip = document.createElement('div');
+            chip.className = 'batch-file-chip';
+
+            const isPdf = file.name.toLowerCase().endsWith('.pdf');
+            const iconClass = isPdf ? 'fa-solid fa-file-pdf' : 'fa-solid fa-file-image';
+
+            chip.innerHTML = `
+                <div class="batch-file-chip-info">
+                    <div class="batch-file-chip-icon">
+                        <i class="${iconClass}"></i>
+                    </div>
+                    <div>
+                        <strong class="batch-file-chip-name" title="${file.name}">#${idx + 1}: ${file.name}</strong>
+                        <span class="batch-file-chip-size">${formatFileSize(file.size)}</span>
+                    </div>
+                </div>
+                <button type="button" class="batch-file-chip-remove" title="Remove this marksheet" data-idx="${idx}">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `;
+
+            const removeBtn = chip.querySelector('.batch-file-chip-remove');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    facultySelectedFiles.splice(idx, 1);
+                    renderFacultyBatchQueue();
+                });
+            }
+
+            facultyBatchChipsContainer.appendChild(chip);
+        });
+
+        if (btnFacultyConvert) {
+            btnFacultyConvert.disabled = false;
+            if (facultySelectedFiles.length === 1) {
+                btnFacultyConvert.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Convert & Extract Marksheet';
+            } else {
+                btnFacultyConvert.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> Convert & Extract All (${facultySelectedFiles.length} Marksheets)`;
+            }
+        }
+    }
+
+    function addFilesToBatch(newFiles) {
+        if (!newFiles || newFiles.length === 0) return;
+        const filesArr = Array.from(newFiles);
+
+        const currentTotal = facultySelectedFiles.length;
+        const allowedSlots = 10 - currentTotal;
+
+        if (allowedSlots <= 0) {
+            showToast('Batch Limit Reached', 'You can upload a maximum of 10 marksheets at once.');
+            return;
+        }
+
+        if (filesArr.length > allowedSlots) {
+            showToast('Batch Limit: 10 Files', `Only the first ${allowedSlots} marksheet(s) were added to stay within the 10-sheet limit.`);
+            facultySelectedFiles = facultySelectedFiles.concat(filesArr.slice(0, allowedSlots));
+        } else {
+            facultySelectedFiles = facultySelectedFiles.concat(filesArr);
+        }
+
+        renderFacultyBatchQueue();
+    }
+
+    if (btnFacultySnapCamera && facultyCameraInput) {
+        btnFacultySnapCamera.addEventListener('click', () => facultyCameraInput.click());
+    }
+
+    if (btnFacultyChooseFile && facultyFileInput) {
+        btnFacultyChooseFile.addEventListener('click', () => facultyFileInput.click());
+    }
+
+    if (btnFacultyAddMoreFiles && facultyFileInput) {
+        btnFacultyAddMoreFiles.addEventListener('click', () => facultyFileInput.click());
+    }
+
+    if (btnFacultyClearBatch) {
+        btnFacultyClearBatch.addEventListener('click', () => {
+            facultySelectedFiles = [];
+            if (facultyFileInput) facultyFileInput.value = '';
+            if (facultyCameraInput) facultyCameraInput.value = '';
+            renderFacultyBatchQueue();
+        });
+    }
+
+    if (facultyFileInput) {
+        facultyFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                addFilesToBatch(e.target.files);
+                facultyFileInput.value = '';
+            }
+        });
+    }
+
+    if (facultyCameraInput) {
+        facultyCameraInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                addFilesToBatch(e.target.files);
+                facultyCameraInput.value = '';
+            }
+        });
+    }
+
+    if (facultyDropZone) {
+        ['dragenter', 'dragover'].forEach(name => {
+            facultyDropZone.addEventListener(name, (e) => {
+                e.preventDefault();
+                facultyDropZone.classList.add('drag-over');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(name => {
+            facultyDropZone.addEventListener(name, (e) => {
+                e.preventDefault();
+                facultyDropZone.classList.remove('drag-over');
+            });
+        });
+
+        facultyDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            facultyDropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0) {
+                addFilesToBatch(e.dataTransfer.files);
+            }
+        });
+    }
+
+    // Toggle Scan Image Preview visibility
+    if (btnToggleBatchScanPreview && batchImagePreviewBody) {
+        btnToggleBatchScanPreview.addEventListener('click', () => {
+            const isHidden = batchImagePreviewBody.style.display === 'none';
+            batchImagePreviewBody.style.display = isHidden ? 'block' : 'none';
+            if (iconToggleScan) {
+                iconToggleScan.className = isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+            }
+        });
+    }
+
+    // Faculty Metadata Helpers
+    function renderFacultyStudentMetadata(meta) {
+        const metaStudentName = document.getElementById('facultyMetaStudentName');
+        const metaPRN = document.getElementById('facultyMetaPRN');
+        const metaRollNo = document.getElementById('facultyMetaRollNo');
+        const metaBranch = document.getElementById('facultyMetaBranch');
+        const metaDivision = document.getElementById('facultyMetaDivision');
+        const metaSemester = document.getElementById('facultyMetaSemester');
+        const metaSubject = document.getElementById('facultyMetaSubject');
+
+        if (!meta) {
+            if (metaStudentName) metaStudentName.value = '';
+            if (metaPRN) metaPRN.value = '';
+            if (metaRollNo) metaRollNo.value = '';
+            if (metaBranch) metaBranch.value = '';
+            if (metaDivision) metaDivision.value = '';
+            if (metaSemester) metaSemester.value = '';
+            if (metaSubject) metaSubject.value = '';
+            return;
+        }
+
+        const name = meta.student_name || meta.name || '';
+        const prn = meta.prn || '';
+        const rawRoll = meta.roll_no || meta.roll_number || meta.rollno || '';
+        const rollNo = cleanNumericRollNo(rawRoll) || rawRoll;
+        const branch = meta.branch || '';
+        const div = meta.division || '';
+        const sem = meta.semester || '';
+        const subj = meta.subject || '';
+
+        if (metaStudentName) metaStudentName.value = name ? name.toUpperCase() : '';
+        if (metaPRN) metaPRN.value = prn ? prn : '';
+        if (metaRollNo) metaRollNo.value = rollNo ? rollNo.toUpperCase() : '';
+        if (metaBranch) metaBranch.value = branch ? branch : '';
+        if (metaDivision) metaDivision.value = div ? div : '';
+        if (metaSemester) metaSemester.value = sem ? sem : '';
+        if (metaSubject) metaSubject.value = subj ? subj : '';
+    }
+
+    function getFacultyEditedMetadata() {
+        const metaStudentName = document.getElementById('facultyMetaStudentName');
+        const metaPRN = document.getElementById('facultyMetaPRN');
+        const metaRollNo = document.getElementById('facultyMetaRollNo');
+        const metaBranch = document.getElementById('facultyMetaBranch');
+        const metaDivision = document.getElementById('facultyMetaDivision');
+        const metaSemester = document.getElementById('facultyMetaSemester');
+        const metaSubject = document.getElementById('facultyMetaSubject');
+
+        const rawRoll = metaRollNo ? metaRollNo.value.trim() : '';
+        const cleanRoll = cleanNumericRollNo(rawRoll) || rawRoll;
+
+        return {
+            student_name: metaStudentName ? metaStudentName.value.trim() : '',
+            prn: metaPRN ? metaPRN.value.trim() : '',
+            roll_no: cleanRoll,
+            branch: metaBranch ? metaBranch.value.trim() : '',
+            division: metaDivision ? metaDivision.value.trim() : '',
+            semester: metaSemester ? metaSemester.value.trim() : '',
+            subject: metaSubject ? metaSubject.value.trim() : ''
+        };
+    }
+
+    // ------------------------------------------------------------------
+    // Batch Extraction (Processes All Selected Marksheets in Sequence)
+    // ------------------------------------------------------------------
+    if (btnFacultyConvert) {
+        btnFacultyConvert.addEventListener('click', async () => {
+            if (!facultySelectedFiles || facultySelectedFiles.length === 0) {
+                alert('Please select at least one marksheet file.');
+                return;
+            }
+
+            const total = facultySelectedFiles.length;
+            facultyBatchResults = [];
+
+            for (let i = 0; i < total; i++) {
+                const file = facultySelectedFiles[i];
+                showLoading(
+                    `Extracting Marksheets (${i + 1} of ${total})`,
+                    `Processing "${file.name}" with Hybrid AI Engine...`
+                );
+
+                try {
+                    const optimizedFile = await compressImageForUpload(file);
+                    const formData = new FormData();
+                    formData.append('file', optimizedFile);
+
+                    const uploadRes = await safeFetchJson('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (uploadRes.status !== 'success') {
+                        throw new Error(uploadRes.detail || `Upload failed for ${file.name}`);
+                    }
+
+                    const extractPayload = {
+                        file_b64_list: uploadRes.pages_b64 || [uploadRes.image_b64],
+                        engine: 'hybrid'
+                    };
+
+                    const extractRes = await safeFetchJson('/api/extract', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(extractPayload)
+                    });
+
+                    if (extractRes.status !== 'success') {
+                        throw new Error(extractRes.detail || `Extraction failed for ${file.name}`);
+                    }
+
+                    const sections = extractRes.sections || [];
+                    const rawMeta = extractRes.metadata || (sections.length > 0 ? sections[0].metadata : null);
+
+                    const metaObj = {
+                        student_name: (rawMeta?.student_name || rawMeta?.name || '').toUpperCase(),
+                        prn: rawMeta?.prn || '',
+                        roll_no: cleanNumericRollNo(rawMeta?.roll_no || rawMeta?.roll_number || rawMeta?.rollno || ''),
+                        branch: rawMeta?.branch || '',
+                        division: rawMeta?.division || '',
+                        semester: rawMeta?.semester || '',
+                        subject: rawMeta?.subject || ''
+                    };
+
+                    facultyBatchResults.push({
+                        index: i,
+                        filename: file.name,
+                        fileSize: file.size,
+                        image_b64: uploadRes.image_b64,
+                        pages_b64: uploadRes.pages_b64 || [uploadRes.image_b64],
+                        sections: sections,
+                        metadata: metaObj,
+                        marks_data: extractQuestionMarksFromGrid({ getSections: () => sections }),
+                        is_verified: false,
+                        is_submitted: false
+                    });
+
+                } catch (batchErr) {
+                    console.error(`Error processing marksheet #${i + 1} (${file.name}):`, batchErr);
+                    // Add fallback placeholder entry so the instructor can still manually input if needed
+                    facultyBatchResults.push({
+                        index: i,
+                        filename: file.name,
+                        fileSize: file.size,
+                        image_b64: null,
+                        pages_b64: [],
+                        sections: [],
+                        metadata: { student_name: '', prn: '', roll_no: '', branch: '', division: '', semester: '', subject: '' },
+                        marks_data: {},
+                        is_verified: false,
+                        is_submitted: false,
+                        error: batchErr.message
+                    });
+                }
+            }
+
+            hideLoading();
+
+            if (facultyBatchResults.length > 0) {
+                currentBatchIndex = 0;
+                renderBatchStepper();
+                loadBatchStudent(0);
+
+                if (facultyResultCard) {
+                    facultyResultCard.style.display = 'block';
+                    facultyResultCard.scrollIntoView({ behavior: 'smooth' });
+                }
+
+                showToast(
+                    'Extraction Completed! 🎉',
+                    `Extracted ${facultyBatchResults.length} marksheet(s). You can now verify each student one by one before submitting.`
+                );
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Verification Carousel & Back-and-Forth Navigation
+    // ------------------------------------------------------------------
+    function saveCurrentBatchStudentEdits() {
+        if (!facultyBatchResults || facultyBatchResults.length === 0) return;
+        if (currentBatchIndex < 0 || currentBatchIndex >= facultyBatchResults.length) return;
+
+        const currentItem = facultyBatchResults[currentBatchIndex];
+        currentItem.metadata = getFacultyEditedMetadata();
+        currentItem.sections = facultySpreadsheetEditor.getSections();
+        currentItem.marks_data = extractQuestionMarksFromGrid(facultySpreadsheetEditor);
+    }
+
+    function renderBatchStepper() {
+        if (!batchStepperContainer) return;
+        batchStepperContainer.innerHTML = '';
+
+        facultyBatchResults.forEach((item, idx) => {
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            pill.className = 'batch-stepper-pill';
+
+            if (idx === currentBatchIndex) pill.classList.add('active');
+            if (item.is_submitted) pill.classList.add('submitted');
+            else if (item.is_verified) pill.classList.add('verified');
+
+            let statusIcon = '';
+            if (item.is_submitted) {
+                statusIcon = '<i class="fa-solid fa-cloud-arrow-up"></i> ';
+            } else if (item.is_verified) {
+                statusIcon = '<i class="fa-solid fa-circle-check"></i> ';
+            }
+
+            const rollLabel = item.metadata.roll_no ? `Roll ${item.metadata.roll_no}` : `Sheet ${idx + 1}`;
+            pill.innerHTML = `${statusIcon}${rollLabel}`;
+
+            pill.addEventListener('click', () => {
+                loadBatchStudent(idx, true);
+            });
+
+            batchStepperContainer.appendChild(pill);
+        });
+
+        if (lblBatchUploadAllCount) {
+            lblBatchUploadAllCount.innerText = String(facultyBatchResults.length);
+        }
+    }
+
+    function loadBatchStudent(targetIndex, scrollToTop = false) {
+        if (!facultyBatchResults || facultyBatchResults.length === 0) return;
+
+        // 1. Save current student's edited state before switching
+        saveCurrentBatchStudentEdits();
+
+        // 2. Bound index
+        if (targetIndex < 0) targetIndex = 0;
+        if (targetIndex >= facultyBatchResults.length) targetIndex = facultyBatchResults.length - 1;
+        currentBatchIndex = targetIndex;
+
+        const item = facultyBatchResults[targetIndex];
+
+        // 3. Render metadata banner
+        renderFacultyStudentMetadata(item.metadata);
+
+        // 4. Render spreadsheet grid
+        facultySpreadsheetEditor.setSections(item.sections || []);
+
+        // 5. Update Scan Image Reference
+        if (batchScanImg && item.image_b64) {
+            batchScanImg.src = item.image_b64;
+            if (batchImagePreviewCard) batchImagePreviewCard.style.display = 'block';
+        }
+
+        // 6. Update Carousel Navigation Header
+        if (batchCurrentIndexLabel) batchCurrentIndexLabel.innerText = String(targetIndex + 1);
+        if (batchTotalCountLabel) batchTotalCountLabel.innerText = String(facultyBatchResults.length);
+        if (batchCurrentStudentName) batchCurrentStudentName.innerText = item.metadata.student_name || `Student ${targetIndex + 1}`;
+        if (batchCurrentStudentRoll) batchCurrentStudentRoll.innerText = item.metadata.roll_no || '--';
+
+        // 7. Update Verification Status Badge
+        if (batchVerifyBadge) {
+            if (item.is_submitted) {
+                batchVerifyBadge.className = 'batch-verify-status-badge submitted';
+                batchVerifyBadge.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Saved in Database';
+            } else if (item.is_verified) {
+                batchVerifyBadge.className = 'batch-verify-status-badge verified';
+                batchVerifyBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> Verified';
+            } else {
+                batchVerifyBadge.className = 'batch-verify-status-badge pending';
+                batchVerifyBadge.innerHTML = '<i class="fa-solid fa-clock"></i> Pending Verification';
+            }
+        }
+
+        // 8. Navigation Buttons State
+        if (btnBatchPrevStudent) btnBatchPrevStudent.disabled = (targetIndex === 0);
+        if (btnBatchNextStudent) btnBatchNextStudent.disabled = (targetIndex === facultyBatchResults.length - 1);
+
+        // 9. Update Stepper Pills
+        renderBatchStepper();
+
+        // 10. Scroll smoothly up to metadata banner to view new student details
+        if (scrollToTop) {
+            const scrollTarget = document.getElementById('facultyMetadataBannerCard') || document.getElementById('facultyResultCard');
+            if (scrollTarget) {
+                scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    }
+
+    if (btnBatchPrevStudent) {
+        btnBatchPrevStudent.addEventListener('click', () => {
+            if (currentBatchIndex > 0) {
+                loadBatchStudent(currentBatchIndex - 1, true);
+            }
+        });
+    }
+
+    if (btnBatchNextStudent) {
+        btnBatchNextStudent.addEventListener('click', () => {
+            if (currentBatchIndex < facultyBatchResults.length - 1) {
+                loadBatchStudent(currentBatchIndex + 1, true);
+            }
+        });
+    }
+
+    if (btnBatchVerifyAndNext) {
+        btnBatchVerifyAndNext.addEventListener('click', () => {
+            if (!facultyBatchResults || facultyBatchResults.length === 0) return;
+
+            saveCurrentBatchStudentEdits();
+            const currentItem = facultyBatchResults[currentBatchIndex];
+            currentItem.is_verified = true;
+
+            showToast(
+                'Student Verified ✔️',
+                `${currentItem.metadata.student_name || 'Student'} (Roll: ${currentItem.metadata.roll_no || currentBatchIndex + 1}) marked as verified.`
+            );
+
+            // Move to next student if available
+            if (currentBatchIndex < facultyBatchResults.length - 1) {
+                loadBatchStudent(currentBatchIndex + 1, true);
+            } else {
+                loadBatchStudent(currentBatchIndex);
+                showToast(
+                    'All Students Verified! 🎯',
+                    'You have verified the last marksheet. You can now click "Commit All to Database" to upload everything.'
+                );
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Batch Database Submission ("Once done for all then upload")
+    // ------------------------------------------------------------------
+    if (btnFacultySubmitAllToDb) {
+        btnFacultySubmitAllToDb.addEventListener('click', async () => {
+            if (!facultyBatchResults || facultyBatchResults.length === 0) {
+                alert('No extracted marksheets found to submit.');
+                return;
+            }
+
+            saveCurrentBatchStudentEdits();
+
+            const classroomId = facultyUploadClassroomSelect ? facultyUploadClassroomSelect.value : (facultyClassroomSelect ? facultyClassroomSelect.value : '');
+            if (!classroomId) {
+                alert('Please select a target classroom batch before committing.');
+                return;
+            }
+
+            // Check if any marksheets are completely empty
+            const invalidEntries = facultyBatchResults.filter(item => !item.metadata.student_name && !item.metadata.roll_no && !item.metadata.prn);
+            if (invalidEntries.length > 0) {
+                const proceed = confirm(`${invalidEntries.length} marksheet(s) have missing student details (Name / Roll No). Would you like to commit the batch anyway?`);
+                if (!proceed) return;
+            }
+
+            showLoading(
+                'Submitting All Marksheets...',
+                `Committing ${facultyBatchResults.length} student records to MongoDB Atlas...`
+            );
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (let i = 0; i < facultyBatchResults.length; i++) {
+                const item = facultyBatchResults[i];
+                showLoading(
+                    `Uploading to MongoDB (${i + 1} of ${facultyBatchResults.length})`,
+                    `Saving: ${item.metadata.student_name || 'Student'} (Roll: ${item.metadata.roll_no || '--'})...`
+                );
+
+                try {
+                    const marksData = item.marks_data && Object.keys(item.marks_data).length > 0
+                        ? item.marks_data
+                        : extractQuestionMarksFromGrid({ getSections: () => item.sections });
+
+                    const res = await safeFetchJson('/api/submissions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            classroom_id: classroomId,
+                            student_metadata: item.metadata,
+                            marks_data: marksData,
+                            raw_image_b64: item.image_b64,
+                            is_faculty: true
+                        })
+                    });
+
+                    if (res.status === 'success') {
+                        item.is_submitted = true;
+                        item.is_verified = true;
+                        successCount++;
+                    } else {
+                        errorCount++;
+                    }
+                } catch (subErr) {
+                    console.error(`Failed to submit marksheet #${i + 1}:`, subErr);
+                    errorCount++;
+                }
+            }
+
+            hideLoading();
+            loadFacultyRoster();
+
+            if (errorCount === 0) {
+                resetFacultyUploadState();
+                showToast(
+                    'All Marksheets Uploaded! 🎉',
+                    `Successfully saved all ${successCount} student marksheets to MongoDB Atlas class roster.`
+                );
+            } else {
+                loadBatchStudent(currentBatchIndex);
+                alert(`Batch submission finished: ${successCount} saved, ${errorCount} failed. Please review unsubmitted sheets.`);
+            }
+        });
+    }
+
+    // Submit Current Student Only
+    if (btnFacultySubmitToDb) {
+        btnFacultySubmitToDb.addEventListener('click', async () => {
+            saveCurrentBatchStudentEdits();
+
+            const classroomId = facultyUploadClassroomSelect ? facultyUploadClassroomSelect.value : (facultyClassroomSelect ? facultyClassroomSelect.value : '');
+            if (!classroomId) {
+                alert('Please select a target classroom batch before committing.');
+                return;
+            }
+
+            const currentMeta = getFacultyEditedMetadata();
+            const questionMarks = extractQuestionMarksFromGrid(facultySpreadsheetEditor);
+
+            if (!currentMeta.student_name && !currentMeta.prn && !currentMeta.roll_no) {
+                alert('Please verify student metadata (Name / Roll No / PRN) before committing.');
+                return;
+            }
+
+            showLoading('Saving to Class Roster', 'Committing marksheet directly to MongoDB Atlas...');
+
+            try {
+                const currentItem = facultyBatchResults[currentBatchIndex];
+                const rawImg = currentItem ? currentItem.image_b64 : (currentFacultyUploadedData ? currentFacultyUploadedData.image_b64 : null);
+
+                const data = await safeFetchJson('/api/submissions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        classroom_id: classroomId,
+                        student_metadata: currentMeta,
+                        marks_data: questionMarks,
+                        raw_image_b64: rawImg,
+                        is_faculty: true
+                    })
+                });
+
+                hideLoading();
+
+                if (data.status === 'success') {
+                    if (currentItem) {
+                        currentItem.is_submitted = true;
+                        currentItem.is_verified = true;
+                    }
+                    showToast(
+                        'Saved to Class Roster! 🎉',
+                        `${currentMeta.student_name || 'Student'} (Roll: ${currentMeta.roll_no}) saved directly to MongoDB Atlas.`
+                    );
+
+                    loadFacultyRoster();
+                    renderBatchStepper();
+
+                    // If all sheets are now submitted, return to initial upload state
+                    const allSubmitted = facultyBatchResults.length > 0 && facultyBatchResults.every(item => item.is_submitted);
+                    if (allSubmitted) {
+                        setTimeout(() => {
+                            resetFacultyUploadState();
+                            showToast('Batch Complete! 🎉', 'All marksheets have been verified and saved to MongoDB Atlas.');
+                        }, 1200);
+                    } else {
+                        loadBatchStudent(currentBatchIndex);
+                    }
+                } else {
+                    alert(`Submission error: ${data.detail || 'Could not save marksheet'}`);
+                }
+            } catch (err) {
+                hideLoading();
+                alert(`Failed to save to database: ${err.message}`);
+            }
+        });
+    }
+
+    // Reset Faculty Upload State back to initial view
+    function resetFacultyUploadState() {
+        facultySelectedFiles = [];
+        facultyBatchResults = [];
+        currentBatchIndex = 0;
+        currentFacultyUploadedData = null;
+
+        if (facultyFileInput) facultyFileInput.value = '';
+        if (facultyCameraInput) facultyCameraInput.value = '';
+
+        renderFacultyBatchQueue();
+
+        if (facultyDropZone) facultyDropZone.style.display = 'block';
+        if (facultyFilePreviewBar) facultyFilePreviewBar.style.display = 'none';
+        if (facultyCropControlStrip) facultyCropControlStrip.style.display = 'none';
+        if (facultyPageCropPreviewCard) facultyPageCropPreviewCard.style.display = 'none';
+        if (facultyBatchQueueContainer) facultyBatchQueueContainer.style.display = 'none';
+        if (facultyResultCard) facultyResultCard.style.display = 'none';
+
+        if (btnFacultyConvert) {
+            btnFacultyConvert.disabled = true;
+            btnFacultyConvert.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Convert & Extract Numbers';
+        }
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Upload New Batch Button
+    const btnFacultyNewBatch = document.getElementById('btnFacultyNewBatch');
+    if (btnFacultyNewBatch) {
+        btnFacultyNewBatch.addEventListener('click', () => {
+            if (confirm('Clear current batch workspace and upload new marksheets?')) {
+                resetFacultyUploadState();
+                showToast('Workspace Reset', 'Ready to upload a new batch of marksheets.');
+            }
+        });
+    }
+
+    // Faculty Single Marksheet Excel & CSV Exports
+    if (btnFacultySingleExportExcel) {
+        btnFacultySingleExportExcel.addEventListener('click', async () => {
+            const sections = facultySpreadsheetEditor.getSections();
+            if (!sections || sections.length === 0) return;
+
+            showLoading('Generating Excel File', 'Formatting worksheets & auto-fitting columns...');
+            const currentMeta = getFacultyEditedMetadata();
+
+            try {
+                const res = await fetch('/api/export/excel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sections: sections, metadata: currentMeta })
+                });
+
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `marksheet_${currentMeta.roll_no || 'student'}.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    alert('Failed to download Excel file.');
+                }
+            } catch (err) {
+                alert(`Export error: ${err.message}`);
+            } finally {
+                hideLoading();
+            }
+        });
+    }
+
+    if (btnFacultySingleExportCsv) {
+        btnFacultySingleExportCsv.addEventListener('click', async () => {
+            const sections = facultySpreadsheetEditor.getSections();
+            if (!sections || sections.length === 0) return;
+
+            showLoading('Generating CSV File', 'Creating clean CSV...');
+            const currentMeta = getFacultyEditedMetadata();
+
+            try {
+                const res = await fetch('/api/export/csv', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sections: sections, metadata: currentMeta })
+                });
+
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `marksheet_${currentMeta.roll_no || 'student'}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    alert('Failed to download CSV file.');
+                }
+            } catch (err) {
+                alert(`Export error: ${err.message}`);
+            } finally {
+                hideLoading();
+            }
+        });
+    }
+
+    // Faculty Grid Toolbar buttons
+    if (btnAddFacultyRow) btnAddFacultyRow.addEventListener('click', () => facultySpreadsheetEditor.addRow());
+    if (btnAddFacultyCol) btnAddFacultyCol.addEventListener('click', () => facultySpreadsheetEditor.addColumn());
+    if (btnClearFacultyGrid) {
+        btnClearFacultyGrid.addEventListener('click', () => {
+            if (confirm('Clear current faculty spreadsheet grid?')) {
+                facultySpreadsheetEditor.clearGrid();
+            }
+        });
     }
 
     // Initial Load
