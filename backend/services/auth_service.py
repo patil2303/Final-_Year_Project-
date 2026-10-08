@@ -681,12 +681,19 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
         }
 
     token = _generate_session_token(clean_email, role)
+    must_change = bool(doc.get("must_change_password", False))
+    user_clean["must_change_password"] = must_change
     return {
         "status": "approved",
+        "must_change_password": must_change,
         "admin_email": ADMIN_EMAIL,
         "user": user_clean,
         "token": token,
-        "message": f"Welcome back, {user_clean.get('name', 'User')}!"
+        "message": (
+            "Please set a new personal password to replace your initial temporary password."
+            if must_change
+            else f"Welcome back, {user_clean.get('name', 'User')}!"
+        )
     }
 
 
@@ -960,9 +967,10 @@ def admin_create_user(
         "role": clean_role,
         "requested_role": clean_role,
         "status": "approved",
+        "must_change_password": True,
         "department": department.strip(),
         "roll_or_id": roll_or_id.strip(),
-        "reason": "Directly created and approved by Admin",
+        "reason": "Directly created and pre-approved by Admin",
         "created_at": now_iso,
         "updated_at": now_iso,
         "approved_by": ADMIN_EMAIL
@@ -975,10 +983,133 @@ def admin_create_user(
     users[clean_email] = dict(user_doc)
     _save_local_users(users)
 
+    # Dispatch Welcome & Initial Password Email via SMTP to the newly added Student / Faculty
+    html_body = f"""
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+        <div style="background: linear-gradient(135deg, #2563eb, #4f46e5); color: #ffffff; padding: 18px 22px; border-radius: 8px; margin-bottom: 20px;">
+            <h2 style="margin: 0; font-size: 18px;">Welcome to Academic Exam & Marksheet Portal! 🎓</h2>
+            <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">Your {clean_role.upper()} Account Has Been Created by the Administrator</p>
+        </div>
+        <p style="color: #334155; font-size: 14px; line-height: 1.5;">
+            Hello <strong>{clean_name}</strong>,<br><br>
+            The Portal Administrator (<strong>{ADMIN_EMAIL}</strong>) has directly added and pre-approved your account for the <strong>{clean_role.upper()}</strong> role.
+        </p>
+        <table style="width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14px;">
+            <tr>
+                <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold; width: 40%;">Full Name:</td>
+                <td style="padding: 10px 12px; border: 1px solid #e2e8f0;">{clean_name}</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold;">Login Email:</td>
+                <td style="padding: 10px 12px; border: 1px solid #e2e8f0;"><strong>{clean_email}</strong></td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold;">Assigned Role:</td>
+                <td style="padding: 10px 12px; border: 1px solid #e2e8f0;"><strong style="color: #2563eb; text-transform: uppercase;">{clean_role.upper()}</strong></td>
+            </tr>
+            <tr>
+                <td style="padding: 10px 12px; background: #fef3c7; border: 1px solid #fde68a; font-weight: bold; color: #b45309;">Initial Password:</td>
+                <td style="padding: 10px 12px; background: #fffbeb; border: 1px solid #fde68a; font-family: monospace; font-size: 15px; font-weight: bold; color: #b45309;">{password}</td>
+            </tr>
+            {f'<tr><td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold;">Department / Info:</td><td style="padding: 10px 12px; border: 1px solid #e2e8f0;">{department}</td></tr>' if department else ''}
+        </table>
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #1e40af; margin-bottom: 20px;">
+            <strong>🔒 Security Note:</strong> This initial password is only for your first login. When you sign in for the first time, you will be prompted to set your own new personal password.
+        </div>
+        <div style="margin: 22px 0;">
+            <a href="{PORTAL_PUBLIC_URL}/login" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 22px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">
+                Login & Set Your New Password
+            </a>
+        </div>
+        <p style="color: #64748b; font-size: 12px; margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+            Academic Exam & Marksheet Portal • Admin: {ADMIN_EMAIL}
+        </p>
+    </div>
+    """
+    smtp_res = send_smtp_email(
+        subject=f"Your {clean_role.upper()} Account & Initial Password — Academic Exam & Marksheet Portal",
+        recipient_email=clean_email,
+        html_body=html_body
+    )
+
+    email_note = " & welcome email with initial password sent!" if smtp_res["sent"] else ""
     return {
         "status": "success",
-        "message": f"Created and pre-approved {clean_role.upper()} account for {clean_email}.",
+        "email_sent": smtp_res["sent"],
+        "smtp_error": smtp_res["error"],
+        "message": f"Created and pre-approved {clean_role.upper()} account for {clean_email}{email_note}",
         "user": _sanitize_user(user_doc)
+    }
+
+
+def change_user_password(
+    email: str,
+    current_password: str,
+    new_password: str
+) -> Dict[str, Any]:
+    """
+    Allows a user (especially one directly added by Admin with an initial password)
+    to change their password and clears must_change_password.
+    """
+    clean_email = (email or "").strip().lower()
+    if not clean_email:
+        raise ValueError("Email is required.")
+    if not current_password:
+        raise ValueError("Current/initial password is required.")
+    if not new_password or len(new_password) < 4:
+        raise ValueError("New password must be at least 4 characters long.")
+
+    curr_hash = _hash_password(current_password)
+    new_hash = _hash_password(new_password)
+
+    col = get_users_collection()
+    doc = None
+    if col is not None:
+        doc = col.find_one({"email": clean_email})
+    if doc is None:
+        users = _load_local_users()
+        doc = users.get(clean_email)
+
+    if not doc:
+        raise ValueError("User account not found.")
+
+    if doc.get("password_hash") != curr_hash:
+        raise ValueError("Current/initial password is incorrect.")
+
+    now_iso = datetime.datetime.utcnow().isoformat() + "Z"
+    update_fields = {
+        "password_hash": new_hash,
+        "must_change_password": False,
+        "updated_at": now_iso
+    }
+
+    if col is not None:
+        col.update_one({"email": clean_email}, {"$set": update_fields})
+        updated_doc = col.find_one({"email": clean_email})
+    else:
+        users = _load_local_users()
+        users[clean_email].update(update_fields)
+        _save_local_users(users)
+        updated_doc = users[clean_email]
+
+    try:
+        users = _load_local_users()
+        if clean_email in users:
+            users[clean_email].update(update_fields)
+            _save_local_users(users)
+    except Exception:
+        pass
+
+    user_clean = _sanitize_user(updated_doc)
+    user_clean["must_change_password"] = False
+    role = user_clean.get("role", "student")
+    token = _generate_session_token(clean_email, role)
+
+    return {
+        "status": "success",
+        "message": "Your password has been updated successfully!",
+        "user": user_clean,
+        "token": token
     }
 
 

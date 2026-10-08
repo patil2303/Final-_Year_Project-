@@ -458,6 +458,13 @@
                         </button>
                     </form>
 
+                    <div style="text-align: center; margin-top: 12px;">
+                        <button type="button" id="btnOpenChangePasswordView"
+                            style="background: transparent; border: none; color: #2563eb; font-size: 0.83rem; font-weight: 700; cursor: pointer;">
+                            <i class="fa-solid fa-key"></i> Change Initial / Current Password
+                        </button>
+                    </div>
+
                     <div class="admin-info-note">
                         <i class="fa-solid fa-circle-info" style="color: #2563eb; margin-right: 4px;"></i>
                         <strong>First time visiting?</strong> Click the <strong>Sign Up</strong> tab above to create your account and send a role request (Student or Faculty) to the Admin.
@@ -612,6 +619,64 @@
                     </div>
                 </div>
 
+                <!-- ========================================================= -->
+                <!-- 5. CHANGE INITIAL / PERSONAL PASSWORD VIEW -->
+                <!-- ========================================================= -->
+                <div id="viewChangePassword" style="display: none;">
+                    <span class="step-badge" style="background: #fef3c7; color: #b45309;">
+                        <i class="fa-solid fa-shield-halved"></i> Security Update • Set Personal Password
+                    </span>
+                    <h2 class="auth-title" id="changePwTitle">Set Your New Password</h2>
+                    <p class="auth-subtitle" id="changePwSubtitle">
+                        Your account was created with an initial temporary password. Please set your new personal password to continue.
+                    </p>
+
+                    <form id="formChangePassword">
+                        <div class="form-group">
+                            <label for="cpEmail">Your Email Address *</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-envelope"></i>
+                                <input type="email" id="cpEmail" class="form-control" placeholder="Enter your email" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="cpCurrentPassword">Initial / Current Password *</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-unlock-keyhole"></i>
+                                <input type="password" id="cpCurrentPassword" class="form-control" placeholder="Enter your initial password" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="cpNewPassword">Set New Personal Password *</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-key"></i>
+                                <input type="password" id="cpNewPassword" class="form-control" placeholder="Enter new password (min 4 chars)" minlength="4" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="cpConfirmPassword">Confirm New Password *</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-check-double"></i>
+                                <input type="password" id="cpConfirmPassword" class="form-control" placeholder="Confirm new password" minlength="4" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-auth-submit" id="btnSaveNewPassword">
+                            <i class="fa-solid fa-floppy-disk"></i> Update Password & Enter Portal
+                        </button>
+
+                        <div style="text-align: center; margin-top: 12px;">
+                            <button type="button" id="btnCancelChangePw"
+                                style="background: transparent; border: none; color: #64748b; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                                <i class="fa-solid fa-arrow-left"></i> Back to Login
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
             </div>
         </div>
     </main>
@@ -632,6 +697,7 @@
         const viewSignUp = document.getElementById('viewSignUp');
         const viewRoleRequest = document.getElementById('viewRoleRequest');
         const viewPendingApproval = document.getElementById('viewPendingApproval');
+        const viewChangePassword = document.getElementById('viewChangePassword');
 
         const authAlertBox = document.getElementById('authAlertBox');
         const authAlertText = document.getElementById('authAlertText');
@@ -663,6 +729,7 @@
             authTabsBar.style.display = 'grid';
             viewRoleRequest.style.display = 'none';
             viewPendingApproval.style.display = 'none';
+            if (viewChangePassword) viewChangePassword.style.display = 'none';
             if (mode === 'login') {
                 tabBtnLogin.classList.add('active');
                 tabBtnSignUp.classList.remove('active');
@@ -678,6 +745,75 @@
 
         tabBtnLogin.addEventListener('click', () => switchTab('login'));
         tabBtnSignUp.addEventListener('click', () => switchTab('signup'));
+
+        function showChangePasswordScreen(emailPrefill = '', currentPwPrefill = '', isFirstLogin = false) {
+            hideAlert();
+            authTabsBar.style.display = 'none';
+            viewLogin.style.display = 'none';
+            viewSignUp.style.display = 'none';
+            viewRoleRequest.style.display = 'none';
+            viewPendingApproval.style.display = 'none';
+            viewChangePassword.style.display = 'block';
+
+            document.getElementById('cpEmail').value = emailPrefill || document.getElementById('loginEmail').value.trim();
+            document.getElementById('cpCurrentPassword').value = currentPwPrefill || '';
+            document.getElementById('cpNewPassword').value = '';
+            document.getElementById('cpConfirmPassword').value = '';
+
+            if (isFirstLogin) {
+                showAlert('warning', 'Welcome! Since you logged in with the initial password set by the Admin, please set your own personal password below.');
+            }
+        }
+
+        document.getElementById('btnOpenChangePasswordView').addEventListener('click', () => {
+            showChangePasswordScreen(document.getElementById('loginEmail').value.trim(), '', false);
+        });
+
+        document.getElementById('btnCancelChangePw').addEventListener('click', () => {
+            switchTab('login');
+        });
+
+        document.getElementById('formChangePassword').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideAlert();
+
+            const email = document.getElementById('cpEmail').value.trim();
+            const current_password = document.getElementById('cpCurrentPassword').value;
+            const new_password = document.getElementById('cpNewPassword').value;
+            const confirm_password = document.getElementById('cpConfirmPassword').value;
+
+            if (new_password !== confirm_password) {
+                showAlert('error', 'New password and Confirm password do not match.');
+                return;
+            }
+
+            const btn = document.getElementById('btnSaveNewPassword');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Updating Password...';
+
+            try {
+                const res = await fetch('/api/auth/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, current_password, new_password })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    showAlert('error', data.detail || 'Could not update password.');
+                } else {
+                    showAlert('success', 'Password updated successfully! Entering your portal...');
+                    setTimeout(() => {
+                        redirectByUserRole(data.user, data.token);
+                    }, 500);
+                }
+            } catch (err) {
+                showAlert('error', 'Network error while updating password.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Update Password & Enter Portal';
+            }
+        });
 
         // Role card selection
         function selectRoleCard(role) {
@@ -725,6 +861,7 @@
             viewLogin.style.display = 'none';
             viewSignUp.style.display = 'none';
             viewPendingApproval.style.display = 'none';
+            if (viewChangePassword) viewChangePassword.style.display = 'none';
             viewRoleRequest.style.display = 'block';
 
             document.getElementById('lblSignedUpName').innerText = user.name || 'User';
@@ -739,6 +876,7 @@
             viewLogin.style.display = 'none';
             viewSignUp.style.display = 'none';
             viewRoleRequest.style.display = 'none';
+            if (viewChangePassword) viewChangePassword.style.display = 'none';
             viewPendingApproval.style.display = 'block';
 
             document.getElementById('pendUserName').innerText = user.name || 'Applicant';
@@ -789,10 +927,15 @@
                     showRoleRequestStep(data.user);
                     showAlert('warning', data.message || 'Your previous request was declined. You can submit a new role request below.');
                 } else if (data.status === 'approved') {
-                    showAlert('success', data.message || 'Login successful! Redirecting...');
-                    setTimeout(() => {
-                        redirectByUserRole(data.user, data.token);
-                    }, 300);
+                    if (data.must_change_password) {
+                        // Prompt directly-added user to replace initial password
+                        showChangePasswordScreen(email, password, true);
+                    } else {
+                        showAlert('success', data.message || 'Login successful! Redirecting...');
+                        setTimeout(() => {
+                            redirectByUserRole(data.user, data.token);
+                        }, 300);
+                    }
                 }
             } catch (err) {
                 showAlert('error', 'Network error while connecting to server. Please try again.');
@@ -925,9 +1068,18 @@
                 return;
             }
             const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-            if (!raw) return;
+            if (!raw) {
+                if (urlParams.get('change_pw') === '1') {
+                    showChangePasswordScreen('', '', false);
+                }
+                return;
+            }
             try {
                 const session = JSON.parse(raw);
+                if (urlParams.get('change_pw') === '1') {
+                    showChangePasswordScreen(session?.user?.email || '', '', false);
+                    return;
+                }
                 if (session && session.user && session.user.email) {
                     const res = await fetch(`/api/auth/status?email=${encodeURIComponent(session.user.email)}`);
                     const data = await res.json();

@@ -848,6 +848,12 @@ def register_join_request_endpoint(req: JoinRequestPayload):
         raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 
+class ChangePasswordPayload(BaseModel):
+    email: str
+    current_password: str
+    new_password: str
+
+
 @app.post("/api/auth/login")
 def login_user_endpoint(req: LoginPayload):
     """Authenticates a user or Admin with email and password."""
@@ -860,6 +866,23 @@ def login_user_endpoint(req: LoginPayload):
     except Exception as e:
         logger.exception("User login failed")
         raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
+
+
+@app.post("/api/auth/change-password")
+def change_password_endpoint(req: ChangePasswordPayload):
+    """Updates a user's password and clears the initial must_change_password flag."""
+    try:
+        from backend.services.auth_service import change_user_password
+        return change_user_password(
+            email=req.email,
+            current_password=req.current_password,
+            new_password=req.new_password
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.exception("Password change failed")
+        raise HTTPException(status_code=500, detail=f"Password change failed: {str(e)}")
 
 
 @app.get("/api/auth/status")
