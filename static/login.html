@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login & Role Access Request — Academic Exam & Marksheet Portal</title>
+    <title>Login & Sign Up — Academic Exam & Marksheet Portal</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,7 +13,7 @@
         rel="stylesheet">
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css?v=4.2">
+    <link rel="stylesheet" href="css/style.css?v=4.3">
     <style>
         body {
             min-height: 100vh;
@@ -27,7 +27,7 @@
         }
 
         .auth-header {
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.92);
             backdrop-filter: blur(12px);
             border-bottom: 1px solid #e2e8f0;
             padding: 16px 32px;
@@ -93,7 +93,7 @@
 
         .auth-card {
             width: 100%;
-            max-width: 520px;
+            max-width: 500px;
             background: #ffffff;
             border-radius: 20px;
             border: 1px solid #e2e8f0;
@@ -114,7 +114,7 @@
             border: none;
             background: transparent;
             padding: 11px 14px;
-            font-size: 0.9rem;
+            font-size: 0.92rem;
             font-weight: 700;
             color: #64748b;
             border-radius: 9px;
@@ -212,12 +212,11 @@
         .role-option-card {
             border: 2px solid #e2e8f0;
             border-radius: 12px;
-            padding: 14px 12px;
+            padding: 16px 12px;
             cursor: pointer;
             background: #f8fafc;
             transition: all 0.2s ease;
             text-align: center;
-            position: relative;
         }
 
         .role-option-card:hover {
@@ -232,23 +231,23 @@
         }
 
         .role-option-card i {
-            font-size: 1.45rem;
+            font-size: 1.55rem;
             color: #2563eb;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
             display: block;
         }
 
         .role-option-card strong {
             display: block;
-            font-size: 0.92rem;
+            font-size: 0.95rem;
             color: #0f172a;
-            margin-bottom: 3px;
+            margin-bottom: 4px;
         }
 
         .role-option-card span {
-            font-size: 0.75rem;
+            font-size: 0.76rem;
             color: #64748b;
-            line-height: 1.3;
+            line-height: 1.35;
             display: block;
         }
 
@@ -314,24 +313,37 @@
             color: #b45309;
         }
 
-        /* Pending Approval Status View */
+        .step-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: 0.75rem;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 999px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
         .pending-status-box {
             text-align: center;
-            padding: 12px 4px;
+            padding: 10px 4px;
         }
 
         .pending-icon-circle {
             width: 64px;
             height: 64px;
             border-radius: 50%;
-            background: #fef3c7;
-            color: #d97706;
+            background: #dcfce7;
+            color: #16a34a;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 1.75rem;
             margin: 0 auto 14px auto;
-            border: 2px solid #fde68a;
+            border: 2px solid #bbf7d0;
         }
 
         .pending-details-card {
@@ -355,37 +367,13 @@
             border-bottom: none;
         }
 
-        .btn-mailto-admin {
-            width: 100%;
-            padding: 11px 16px;
-            border-radius: 10px;
-            border: 1.5px solid #2563eb;
-            background: #eff6ff;
-            color: #1d4ed8;
-            font-weight: 700;
-            font-size: 0.88rem;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            text-decoration: none;
-            box-sizing: border-box;
-            margin-bottom: 10px;
-            transition: all 0.2s;
-        }
-
-        .btn-mailto-admin:hover {
-            background: #dbeafe;
-        }
-
         .admin-info-note {
             margin-top: 18px;
             padding: 12px 14px;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 10px;
-            font-size: 0.79rem;
+            font-size: 0.8rem;
             color: #475569;
             line-height: 1.45;
         }
@@ -395,15 +383,6 @@
             padding: 16px;
             font-size: 0.8rem;
             color: #64748b;
-        }
-
-        @media (max-width: 520px) {
-            .form-row-2 {
-                grid-template-columns: 1fr;
-            }
-            .auth-body {
-                padding: 20px 18px 24px 18px;
-            }
         }
     </style>
 </head>
@@ -423,7 +402,7 @@
         </div>
         <div class="admin-badge-pill">
             <i class="fa-solid fa-user-shield"></i>
-            <span>Admin Verification: <strong>hp5623699@gmail.com</strong></span>
+            <span>Admin: <strong>hp5623699@gmail.com</strong></span>
         </div>
     </header>
 
@@ -431,13 +410,13 @@
     <main class="auth-wrapper">
         <div class="auth-card">
 
-            <!-- Mode Switcher Tabs -->
+            <!-- Two Main Options: Login or Sign Up -->
             <div class="auth-tabs" id="authTabsBar">
-                <button type="button" class="auth-tab-btn active" id="tabBtnSignIn">
-                    <i class="fa-solid fa-right-to-bracket"></i> Sign In
+                <button type="button" class="auth-tab-btn active" id="tabBtnLogin">
+                    <i class="fa-solid fa-right-to-bracket"></i> Login
                 </button>
-                <button type="button" class="auth-tab-btn" id="tabBtnJoinRequest">
-                    <i class="fa-solid fa-user-plus"></i> Request Role Access
+                <button type="button" class="auth-tab-btn" id="tabBtnSignUp">
+                    <i class="fa-solid fa-user-plus"></i> Sign Up
                 </button>
             </div>
 
@@ -449,19 +428,19 @@
                 </div>
 
                 <!-- ========================================================= -->
-                <!-- 1. SIGN IN FORM (Approved Users & Admin) -->
+                <!-- 1. LOGIN VIEW (Admin & Approved Users) -->
                 <!-- ========================================================= -->
-                <div id="viewSignIn">
-                    <h2 class="auth-title">Welcome Back</h2>
-                    <p class="auth-subtitle">Sign in with your approved email address to access your assigned portal.</p>
+                <div id="viewLogin">
+                    <h2 class="auth-title">Login to Portal</h2>
+                    <p class="auth-subtitle">Enter your email and password. Admin credentials will open the Admin Control Panel directly.</p>
 
-                    <form id="formSignIn">
+                    <form id="formLogin">
                         <div class="form-group">
                             <label for="loginEmail">Email Address</label>
                             <div class="input-with-icon">
                                 <i class="fa-solid fa-envelope"></i>
                                 <input type="email" id="loginEmail" class="form-control"
-                                    placeholder="e.g., student@acpce.ac.in or hp5623699@gmail.com" required>
+                                    placeholder="Enter your email address" required>
                             </div>
                         </div>
 
@@ -474,58 +453,85 @@
                             </div>
                         </div>
 
-                        <button type="submit" class="btn-auth-submit" id="btnSignInSubmit">
-                            <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In to Portal
+                        <button type="submit" class="btn-auth-submit" id="btnLoginSubmit">
+                            <i class="fa-solid fa-arrow-right-to-bracket"></i> Login
                         </button>
                     </form>
 
                     <div class="admin-info-note">
-                        <i class="fa-solid fa-shield-halved" style="color: #2563eb; margin-right: 4px;"></i>
-                        <strong>First time visiting?</strong> Switch to the <strong>Request Role Access</strong> tab above to send a join request to the Administrator (<code>hp5623699@gmail.com</code>) for Student or Faculty access.
+                        <i class="fa-solid fa-circle-info" style="color: #2563eb; margin-right: 4px;"></i>
+                        <strong>First time visiting?</strong> Click the <strong>Sign Up</strong> tab above to create your account and send a role request (Student or Faculty) to the Admin.
                     </div>
                 </div>
 
                 <!-- ========================================================= -->
-                <!-- 2. NEW USER JOIN REQUEST FORM -->
+                <!-- 2. SIGN UP VIEW (STEP 1: Email & New Password) -->
                 <!-- ========================================================= -->
-                <div id="viewJoinRequest" style="display: none;">
-                    <h2 class="auth-title">Request Portal Access</h2>
-                    <p class="auth-subtitle">New users must send a role request to the Administrator (<strong>hp5623699@gmail.com</strong>) for verification.</p>
+                <div id="viewSignUp" style="display: none;">
+                    <span class="step-badge"><i class="fa-solid fa-user-plus"></i> Step 1 of 2 • Account Sign Up</span>
+                    <h2 class="auth-title">Create New Account</h2>
+                    <p class="auth-subtitle">Sign up with your name, email, and a new password. On the next screen, you will request your Student or Faculty role from the Admin.</p>
 
-                    <form id="formJoinRequest">
+                    <form id="formSignUp">
                         <div class="form-group">
-                            <label>Select Requested Role</label>
-                            <div class="role-selector-grid">
-                                <div class="role-option-card selected" data-role="student" id="cardRoleStudent">
-                                    <i class="fa-solid fa-user-graduate"></i>
-                                    <strong>Student</strong>
-                                    <span>Upload marksheets & submit to class roster</span>
-                                </div>
-                                <div class="role-option-card" data-role="faculty" id="cardRoleFaculty">
-                                    <i class="fa-solid fa-chalkboard-user"></i>
-                                    <strong>Faculty</strong>
-                                    <span>Manage classrooms, batch verify & export grades</span>
-                                </div>
-                            </div>
-                            <input type="hidden" id="reqSelectedRole" value="student">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="reqFullName">Full Name *</label>
+                            <label for="signupFullName">Full Name *</label>
                             <div class="input-with-icon">
                                 <i class="fa-solid fa-user"></i>
-                                <input type="text" id="reqFullName" class="form-control"
+                                <input type="text" id="signupFullName" class="form-control"
                                     placeholder="Enter your full name" required>
                             </div>
                         </div>
 
                         <div class="form-group">
-                            <label for="reqEmail">Your Email Address *</label>
+                            <label for="signupEmail">Email Address *</label>
                             <div class="input-with-icon">
                                 <i class="fa-solid fa-envelope"></i>
-                                <input type="email" id="reqEmail" class="form-control"
-                                    placeholder="yourname@gmail.com or @acpce.ac.in" required>
+                                <input type="email" id="signupEmail" class="form-control"
+                                    placeholder="yourname@gmail.com" required>
                             </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="signupPassword">Set New Password *</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-key"></i>
+                                <input type="password" id="signupPassword" class="form-control"
+                                    placeholder="Create a password (min 4 characters)" minlength="4" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-auth-submit" id="btnSignUpSubmit">
+                            <i class="fa-solid fa-arrow-right"></i> Sign Up & Continue to Role Request
+                        </button>
+                    </form>
+                </div>
+
+                <!-- ========================================================= -->
+                <!-- 3. STEP 2 AFTER SIGNUP: SELECT ROLE & SEND REQUEST TO ADMIN -->
+                <!-- ========================================================= -->
+                <div id="viewRoleRequest" style="display: none;">
+                    <span class="step-badge"><i class="fa-solid fa-paper-plane"></i> Step 2 of 2 • Role Request</span>
+                    <h2 class="auth-title">Send Role Request to Admin</h2>
+                    <p class="auth-subtitle">
+                        Hello <strong id="lblSignedUpName">User</strong> (<span id="lblSignedUpEmail"></span>)! Choose your role below to send an email notification & join request to the Admin (<strong>hp5623699@gmail.com</strong>).
+                    </p>
+
+                    <form id="formRoleRequest">
+                        <div class="form-group">
+                            <label>Select Role to Request *</label>
+                            <div class="role-selector-grid">
+                                <div class="role-option-card selected" data-role="student" id="cardRoleStudent">
+                                    <i class="fa-solid fa-user-graduate"></i>
+                                    <strong>Student Role</strong>
+                                    <span>Upload marksheets & submit to class roster</span>
+                                </div>
+                                <div class="role-option-card" data-role="faculty" id="cardRoleFaculty">
+                                    <i class="fa-solid fa-chalkboard-user"></i>
+                                    <strong>Faculty Role</strong>
+                                    <span>Manage classes, verify marksheets & export grades</span>
+                                </div>
+                            </div>
+                            <input type="hidden" id="reqSelectedRole" value="student">
                         </div>
 
                         <div class="form-row-2">
@@ -547,41 +553,32 @@
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <label for="reqPassword">Create Password *</label>
-                            <div class="input-with-icon">
-                                <i class="fa-solid fa-key"></i>
-                                <input type="password" id="reqPassword" class="form-control"
-                                    placeholder="Create a password (min 4 chars)" minlength="4" required>
-                            </div>
-                        </div>
-
-                        <button type="submit" class="btn-auth-submit" id="btnJoinSubmit">
+                        <button type="submit" class="btn-auth-submit" id="btnSendRoleRequest">
                             <i class="fa-solid fa-paper-plane"></i> Send Join Request to Admin
                         </button>
                     </form>
                 </div>
 
                 <!-- ========================================================= -->
-                <!-- 3. PENDING APPROVAL / REQUEST SENT CONFIRMATION VIEW -->
+                <!-- 4. REQUEST SENT / AWAITING ADMIN APPROVAL SCREEN -->
                 <!-- ========================================================= -->
                 <div id="viewPendingApproval" style="display: none;">
                     <div class="pending-status-box">
-                        <div class="pending-icon-circle" id="pendingStatusIcon">
-                            <i class="fa-solid fa-hourglass-half"></i>
+                        <div class="pending-icon-circle">
+                            <i class="fa-solid fa-envelope-circle-check"></i>
                         </div>
-                        <h2 class="auth-title" id="pendingStatusTitle">Join Request Sent to Admin!</h2>
+                        <h2 class="auth-title">Join Request Sent to Admin!</h2>
                         <p class="auth-subtitle" id="pendingStatusSubtitle">
-                            Your request has been logged and sent to the Administrator (<strong>hp5623699@gmail.com</strong>). Once verified and accepted, you will have full access.
+                            Your join request has been sent to the Admin (<strong>hp5623699@gmail.com</strong>). Once the Admin verifies and accepts your request on the Admin Page, a confirmation email will be sent to your inbox!
                         </p>
 
                         <div class="pending-details-card">
                             <div class="pending-details-row">
-                                <span style="color: #64748b;">Applicant Name:</span>
+                                <span style="color: #64748b;">Requestor Name:</span>
                                 <strong id="pendUserName">--</strong>
                             </div>
                             <div class="pending-details-row">
-                                <span style="color: #64748b;">Applicant Email:</span>
+                                <span style="color: #64748b;">Requestor Email:</span>
                                 <strong id="pendUserEmail">--</strong>
                             </div>
                             <div class="pending-details-row">
@@ -589,29 +586,28 @@
                                 <strong id="pendUserRole" style="color: #2563eb; text-transform: uppercase;">--</strong>
                             </div>
                             <div class="pending-details-row">
-                                <span style="color: #64748b;">Admin Verifier:</span>
+                                <span style="color: #64748b;">Admin Email:</span>
                                 <strong>hp5623699@gmail.com</strong>
                             </div>
                             <div class="pending-details-row">
-                                <span style="color: #64748b;">Current Status:</span>
-                                <span id="pendStatusBadge" style="background: #fef3c7; color: #b45309; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.78rem;">
-                                    PENDING ADMIN APPROVAL
+                                <span style="color: #64748b;">Email Notification:</span>
+                                <span id="pendEmailSentStatus" style="font-weight: 700; color: #16a34a;">Sent to Admin</span>
+                            </div>
+                            <div class="pending-details-row">
+                                <span style="color: #64748b;">Status:</span>
+                                <span style="background: #fef3c7; color: #b45309; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.78rem;">
+                                    WAITING FOR ADMIN APPROVAL
                                 </span>
                             </div>
                         </div>
 
-                        <!-- Direct Email Trigger to hp5623699@gmail.com -->
-                        <a href="#" id="btnSendDirectEmail" target="_blank" class="btn-mailto-admin">
-                            <i class="fa-solid fa-envelope-open-text"></i> Send Join Request Email via Gmail to hp5623699@gmail.com
-                        </a>
-
                         <button type="button" class="btn-auth-submit" id="btnCheckApprovalNow" style="margin-bottom: 10px;">
-                            <i class="fa-solid fa-rotate"></i> Check Approval Status Now
+                            <i class="fa-solid fa-rotate"></i> Check If Admin Approved My Request
                         </button>
 
-                        <button type="button" id="btnBackToSignIn"
+                        <button type="button" id="btnBackToLogin"
                             style="background: transparent; border: none; color: #64748b; font-size: 0.85rem; font-weight: 600; cursor: pointer; padding: 6px;">
-                            <i class="fa-solid fa-arrow-left"></i> Back to Sign In
+                            <i class="fa-solid fa-arrow-left"></i> Back to Login
                         </button>
                     </div>
                 </div>
@@ -628,12 +624,13 @@
         const AUTH_STORAGE_KEY = 'portal_auth_session_v1';
         const ADMIN_EMAIL = 'hp5623699@gmail.com';
 
-        const tabBtnSignIn = document.getElementById('tabBtnSignIn');
-        const tabBtnJoinRequest = document.getElementById('tabBtnJoinRequest');
+        const tabBtnLogin = document.getElementById('tabBtnLogin');
+        const tabBtnSignUp = document.getElementById('tabBtnSignUp');
         const authTabsBar = document.getElementById('authTabsBar');
 
-        const viewSignIn = document.getElementById('viewSignIn');
-        const viewJoinRequest = document.getElementById('viewJoinRequest');
+        const viewLogin = document.getElementById('viewLogin');
+        const viewSignUp = document.getElementById('viewSignUp');
+        const viewRoleRequest = document.getElementById('viewRoleRequest');
         const viewPendingApproval = document.getElementById('viewPendingApproval');
 
         const authAlertBox = document.getElementById('authAlertBox');
@@ -646,7 +643,7 @@
         const lblReqRollOrId = document.getElementById('lblReqRollOrId');
         const reqRollOrId = document.getElementById('reqRollOrId');
 
-        let currentPendingUser = null;
+        let activeSignupUser = null;
 
         function showAlert(type, message) {
             authAlertBox.className = 'auth-alert ' + type;
@@ -664,22 +661,23 @@
         function switchTab(mode) {
             hideAlert();
             authTabsBar.style.display = 'grid';
+            viewRoleRequest.style.display = 'none';
             viewPendingApproval.style.display = 'none';
-            if (mode === 'signin') {
-                tabBtnSignIn.classList.add('active');
-                tabBtnJoinRequest.classList.remove('active');
-                viewSignIn.style.display = 'block';
-                viewJoinRequest.style.display = 'none';
+            if (mode === 'login') {
+                tabBtnLogin.classList.add('active');
+                tabBtnSignUp.classList.remove('active');
+                viewLogin.style.display = 'block';
+                viewSignUp.style.display = 'none';
             } else {
-                tabBtnJoinRequest.classList.add('active');
-                tabBtnSignIn.classList.remove('active');
-                viewJoinRequest.style.display = 'block';
-                viewSignIn.style.display = 'none';
+                tabBtnSignUp.classList.add('active');
+                tabBtnLogin.classList.remove('active');
+                viewSignUp.style.display = 'block';
+                viewLogin.style.display = 'none';
             }
         }
 
-        tabBtnSignIn.addEventListener('click', () => switchTab('signin'));
-        tabBtnJoinRequest.addEventListener('click', () => switchTab('join'));
+        tabBtnLogin.addEventListener('click', () => switchTab('login'));
+        tabBtnSignUp.addEventListener('click', () => switchTab('signup'));
 
         // Role card selection
         function selectRoleCard(role) {
@@ -719,63 +717,59 @@
             }
         }
 
-        // Show Pending Verification Screen
-        function showPendingScreen(user) {
-            currentPendingUser = user;
+        // Open Step 2: Role Request View after Sign Up
+        function showRoleRequestStep(user) {
+            activeSignupUser = user;
             hideAlert();
             authTabsBar.style.display = 'none';
-            viewSignIn.style.display = 'none';
-            viewJoinRequest.style.display = 'none';
-            viewPendingApproval.style.display = 'block';
+            viewLogin.style.display = 'none';
+            viewSignUp.style.display = 'none';
+            viewPendingApproval.style.display = 'none';
+            viewRoleRequest.style.display = 'block';
 
-            const name = user.name || 'Applicant';
-            const email = user.email || '';
-            const role = (user.requested_role || user.role || 'student').toUpperCase();
-            const dept = user.department || 'Not specified';
-            const rollId = user.roll_or_id || 'Not specified';
-
-            document.getElementById('pendUserName').innerText = name;
-            document.getElementById('pendUserEmail').innerText = email;
-            document.getElementById('pendUserRole').innerText = role;
-
-            // Build Gmail compose URL so the user can also directly email hp5623699@gmail.com
-            const subject = encodeURIComponent(`[Portal Join Request] ${name} requesting ${role} Role`);
-            const body = encodeURIComponent(
-`Hello Portal Admin (${ADMIN_EMAIL}),
-
-I have submitted a join request on the Academic Exam & Marksheet Portal. Please verify and approve my account:
-
-• Full Name: ${name}
-• Email Address: ${email}
-• Requested Role: ${role}
-• Department / Branch: ${dept}
-• Roll No / ID: ${rollId}
-
-You can approve my request from the Admin Control Panel (/admin).
-
-Thank you,
-${name}`
-            );
-            const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${ADMIN_EMAIL}&su=${subject}&body=${body}`;
-            const btnSendDirectEmail = document.getElementById('btnSendDirectEmail');
-            btnSendDirectEmail.href = gmailUrl;
+            document.getElementById('lblSignedUpName').innerText = user.name || 'User';
+            document.getElementById('lblSignedUpEmail').innerText = user.email || '';
         }
 
-        document.getElementById('btnBackToSignIn').addEventListener('click', () => {
-            switchTab('signin');
+        // Open Step 3: Pending Admin Approval View
+        function showPendingScreen(user, emailSent) {
+            activeSignupUser = user;
+            hideAlert();
+            authTabsBar.style.display = 'none';
+            viewLogin.style.display = 'none';
+            viewSignUp.style.display = 'none';
+            viewRoleRequest.style.display = 'none';
+            viewPendingApproval.style.display = 'block';
+
+            document.getElementById('pendUserName').innerText = user.name || 'Applicant';
+            document.getElementById('pendUserEmail').innerText = user.email || '';
+            document.getElementById('pendUserRole').innerText = (user.requested_role || user.role || 'student').toUpperCase();
+
+            const emailBadge = document.getElementById('pendEmailSentStatus');
+            if (emailSent) {
+                emailBadge.innerText = 'SMTP Notification Sent to Admin';
+                emailBadge.style.color = '#16a34a';
+            } else {
+                emailBadge.innerText = 'Logged in Admin Queue (Dashboard)';
+                emailBadge.style.color = '#2563eb';
+            }
+        }
+
+        document.getElementById('btnBackToLogin').addEventListener('click', () => {
+            switchTab('login');
         });
 
-        // Handle Sign In Submit
-        document.getElementById('formSignIn').addEventListener('submit', async (e) => {
+        // 1. Handle Login Form
+        document.getElementById('formLogin').addEventListener('submit', async (e) => {
             e.preventDefault();
             hideAlert();
 
             const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
-            const btn = document.getElementById('btnSignInSubmit');
+            const btn = document.getElementById('btnLoginSubmit');
 
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying Credentials...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Logging in...';
 
             try {
                 const res = await fetch('/api/auth/login', {
@@ -786,49 +780,94 @@ ${name}`
                 const data = await res.json();
 
                 if (!res.ok) {
-                    showAlert('error', data.detail || 'Sign in failed. Please check your credentials.');
+                    showAlert('error', data.detail || 'Login failed. Please check your email and password.');
+                } else if (data.status === 'unrequested') {
+                    showRoleRequestStep(data.user);
                 } else if (data.status === 'pending') {
-                    showPendingScreen(data.user);
+                    showPendingScreen(data.user, true);
                 } else if (data.status === 'rejected') {
-                    showAlert('error', data.message || `Your join request was declined by the Administrator (${ADMIN_EMAIL}).`);
+                    showRoleRequestStep(data.user);
+                    showAlert('warning', data.message || 'Your previous request was declined. You can submit a new role request below.');
                 } else if (data.status === 'approved') {
-                    showAlert('success', 'Login successful! Redirecting to your portal...');
+                    showAlert('success', data.message || 'Login successful! Redirecting...');
                     setTimeout(() => {
                         redirectByUserRole(data.user, data.token);
-                    }, 400);
+                    }, 300);
                 }
             } catch (err) {
                 showAlert('error', 'Network error while connecting to server. Please try again.');
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In to Portal';
+                btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Login';
             }
         });
 
-        // Handle Join Request Submit
-        document.getElementById('formJoinRequest').addEventListener('submit', async (e) => {
+        // 2. Handle Sign Up Form (Step 1: Email & New Password)
+        document.getElementById('formSignUp').addEventListener('submit', async (e) => {
             e.preventDefault();
             hideAlert();
 
-            const name = document.getElementById('reqFullName').value.trim();
-            const email = document.getElementById('reqEmail').value.trim();
-            const password = document.getElementById('reqPassword').value;
+            const name = document.getElementById('signupFullName').value.trim();
+            const email = document.getElementById('signupEmail').value.trim();
+            const password = document.getElementById('signupPassword').value;
+            const btn = document.getElementById('btnSignUpSubmit');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating Account...';
+
+            try {
+                const res = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    showAlert('error', data.detail || 'Sign up failed.');
+                } else if (data.status === 'approved') {
+                    // Admin email signed up -> go directly to Admin page
+                    showAlert('success', 'Admin account verified! Redirecting to Admin Control Panel...');
+                    setTimeout(() => {
+                        redirectByUserRole(data.user, data.token);
+                    }, 400);
+                } else {
+                    // Proceed to Step 2: Select Role & Send Join Request to Admin
+                    showRoleRequestStep(data.user);
+                }
+            } catch (err) {
+                showAlert('error', 'Failed to sign up. Please check your connection.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-arrow-right"></i> Sign Up & Continue to Role Request';
+            }
+        });
+
+        // 3. Handle Step 2: Send Role Request to Admin
+        document.getElementById('formRoleRequest').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideAlert();
+
+            if (!activeSignupUser || !activeSignupUser.email) {
+                switchTab('signup');
+                return;
+            }
+
             const requested_role = document.getElementById('reqSelectedRole').value;
             const department = document.getElementById('reqDepartment').value.trim();
             const roll_or_id = document.getElementById('reqRollOrId').value.trim();
+            const btn = document.getElementById('btnSendRoleRequest');
 
-            const btn = document.getElementById('btnJoinSubmit');
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending Request to Admin...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending Email & Request to Admin...';
 
             try {
                 const res = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        name,
-                        email,
-                        password,
+                        name: activeSignupUser.name,
+                        email: activeSignupUser.email,
                         requested_role,
                         department,
                         roll_or_id
@@ -837,50 +876,44 @@ ${name}`
                 const data = await res.json();
 
                 if (!res.ok) {
-                    showAlert('error', data.detail || 'Could not submit join request.');
-                } else if (data.status === 'approved') {
-                    // Admin email auto-approved
-                    showAlert('success', 'Admin account verified! Redirecting to Admin Control Panel...');
-                    setTimeout(() => {
-                        redirectByUserRole(data.user, data.token);
-                    }, 500);
+                    showAlert('error', data.detail || 'Could not submit role request.');
                 } else {
-                    showPendingScreen(data.user);
+                    showPendingScreen(data.user, data.email_notification_sent);
                 }
             } catch (err) {
-                showAlert('error', 'Failed to send join request. Please check your connection.');
+                showAlert('error', 'Failed to send role request to Admin.');
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Join Request to Admin';
             }
         });
 
-        // Check Live Approval Status Button
+        // 4. Check Live Approval Status Button
         document.getElementById('btnCheckApprovalNow').addEventListener('click', async () => {
-            if (!currentPendingUser || !currentPendingUser.email) return;
+            if (!activeSignupUser || !activeSignupUser.email) return;
             const btn = document.getElementById('btnCheckApprovalNow');
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking with Admin Server...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking Approval Status...';
 
             try {
-                const res = await fetch(`/api/auth/status?email=${encodeURIComponent(currentPendingUser.email)}`);
+                const res = await fetch(`/api/auth/status?email=${encodeURIComponent(activeSignupUser.email)}`);
                 const data = await res.json();
 
                 if (data.status === 'approved' && data.user) {
-                    showAlert('success', `Great news! Admin (${ADMIN_EMAIL}) approved your ${data.user.role.toUpperCase()} access! Redirecting...`);
+                    showAlert('success', `Approved! Admin (${ADMIN_EMAIL}) granted you ${data.user.role.toUpperCase()} access! Redirecting...`);
                     setTimeout(() => {
                         redirectByUserRole(data.user, data.token);
-                    }, 700);
+                    }, 600);
                 } else if (data.status === 'rejected') {
                     showAlert('error', `Your request was declined by Admin (${ADMIN_EMAIL}).`);
                 } else {
-                    showAlert('warning', `Still awaiting verification from Admin (${ADMIN_EMAIL}). Please check back shortly or send an email notification below.`);
+                    showAlert('warning', `Still waiting for Admin (${ADMIN_EMAIL}) to accept your request on the Admin Page.`);
                 }
             } catch (err) {
                 showAlert('error', 'Could not check status right now.');
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Check Approval Status Now';
+                btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Check If Admin Approved My Request';
             }
         });
 

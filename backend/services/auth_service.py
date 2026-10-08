@@ -5,28 +5,31 @@ import hashlib
 import datetime
 import logging
 import smtplib
-import urllib.request
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Dict, Any, List, Optional
 
 from backend.database.mongo import (
-    get_users_collection,
-    is_live_proxy_active,
-    LIVE_BASE_URL
+    get_database,
+    get_users_collection
 )
 
 logger = logging.getLogger(__name__)
 
-# Primary Admin Email configured as requested
+# Primary Admin Credentials
 ADMIN_EMAIL = "hp5623699@gmail.com"
 DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_DEFAULT_PASSWORD", "Admin@123")
 SECRET_SALT = os.environ.get("AUTH_SECRET_SALT", "academic_marksheet_portal_salt_2026")
+PORTAL_PUBLIC_URL = os.environ.get("LIVE_API_URL", "https://final-year-project-rho-sable.vercel.app")
 
 # Local fallback file in case of offline local development
 _LOCAL_USERS_FILE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
     "local_users_cache.json"
+)
+_LOCAL_SMTP_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "local_smtp_config.json"
 )
 
 
@@ -50,28 +53,183 @@ def verify_session_token(email: str, role: str, token: str) -> bool:
     return hmac.compare_digest(expected, token)
 
 
-def _proxy_get(endpoint: str, timeout: int = 12) -> Any:
-    url = f"{LIVE_BASE_URL}{endpoint}"
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (SmartLocalProxy)"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+# ==============================================================================
+# SMTP EMAIL CONFIGURATION & DISPATCH SERVICE
+# ==============================================================================
+
+def _read_env_file_var(key: str) -> str:
+    """Reads a key from the project's .env file if present."""
+    val = os.environ.get(key, "").strip()
+    if val:
+        return val
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith(f"{key}="):
+                        return line.split("=", 1)[1].strip().strip('"').strip("'")
+        except Exception:
+            pass
+    return ""
 
 
-def _proxy_post(endpoint: str, payload: Dict[str, Any], timeout: int = 15) -> Any:
-    url = f"{LIVE_BASE_URL}{endpoint}"
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (SmartLocalProxy)"},
-        method="POST"
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+def get_smtp_config() -> Dict[str, Any]:
+    """
+    Retrieves SMTP credentials from:
+    1. MongoDB Atlas ('system_settings' collection)
+    2. Local .env / environment variables (SMTP_EMAIL, SMTP_PASSWORD)
+    3. Local JSON cache fallback
+    """
+    smtp_email = _read_env_file_var("SMTP_EMAIL") or ADMIN_EMAIL
+    smtp_password = _read_env_file_var("SMTP_PASSWORD")
+    smtp_host = _read_env_file_var("SMTP_HOST") or "smtp.gmail.com"
+    smtp_port = int(_read_env_file_var("SMTP_PORT") or "587")
 
+    # Check MongoDB system_settings first so Vercel & Local share settings automatically
+    db = get_database()
+    if db is not None:
+        try:
+            cfg = db["system_settings"].find_one({"_id": "smtp_config"})
+            if cfg:
+                if cfg.get("smtp_email"):
+                    smtp_email = cfg["smtp_email"]
+                if cfg.get("smtp_password"):
+                    smtp_password = cfg["smtp_password"]
+                if cfg.get("smtp_host"):
+                    smtp_host = cfg["smtp_host"]
+                if cfg.get("smtp_port"):
+                    smtp_port = int(cfg["smtp_port"])
+        except Exception as e:
+            logger.warning(f"[SMTP] Could not read MongoDB smtp_config: {e}")
+
+    # Check local file fallback if still empty
+    if not smtp_password and os.path.exists(_LOCAL_SMTP_FILE):
+        try:
+            with open(_LOCAL_SMTP_FILE, "r", encoding="utf-8") as f:
+                local_cfg = json.load(f)
+                smtp_email = local_cfg.get("smtp_email") or smtp_email
+                smtp_password = local_cfg.get("smtp_password") or smtp_password
+                smtp_host = local_cfg.get("smtp_host") or smtp_host
+                smtp_port = int(local_cfg.get("smtp_port") or smtp_port)
+        except Exception:
+            pass
+
+    # Strip spaces from Gmail App Passwords (e.g. "abcd efgh ijkl mnop" -> "abcdefghijklmnop")
+    clean_app_pass = (smtp_password or "").replace(" ", "").strip()
+
+    return {
+        "smtp_email": smtp_email.strip(),
+        "smtp_password": clean_app_pass,
+        "smtp_host": smtp_host.strip(),
+        "smtp_port": smtp_port,
+        "is_configured": bool(clean_app_pass)
+    }
+
+
+def save_smtp_config(
+    admin_email: str,
+    smtp_email: str,
+    smtp_password: str,
+    smtp_host: str = "smtp.gmail.com",
+    smtp_port: int = 587
+) -> Dict[str, Any]:
+    """Saves SMTP settings in MongoDB Atlas and local cache."""
+    if (admin_email or "").strip().lower() != ADMIN_EMAIL.lower():
+        raise PermissionError(f"Unauthorized: Only {ADMIN_EMAIL} can configure SMTP settings.")
+
+    clean_email = (smtp_email or ADMIN_EMAIL).strip()
+    clean_pass = (smtp_password or "").replace(" ", "").strip()
+    if not clean_pass:
+        raise ValueError("Please provide a valid 16-character Gmail App Password.")
+
+    cfg_doc = {
+        "smtp_email": clean_email,
+        "smtp_password": clean_pass,
+        "smtp_host": (smtp_host or "smtp.gmail.com").strip(),
+        "smtp_port": int(smtp_port or 587),
+        "updated_at": datetime.datetime.utcnow().isoformat() + "Z"
+    }
+
+    db = get_database()
+    if db is not None:
+        try:
+            db["system_settings"].update_one(
+                {"_id": "smtp_config"},
+                {"$set": cfg_doc},
+                upsert=True
+            )
+        except Exception as e:
+            logger.warning(f"[SMTP] Failed to save config to MongoDB: {e}")
+
+    try:
+        with open(_LOCAL_SMTP_FILE, "w", encoding="utf-8") as f:
+            json.dump(cfg_doc, f, indent=2)
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "message": f"SMTP Mail Service configured for {clean_email}.",
+        "is_configured": True,
+        "smtp_email": clean_email
+    }
+
+
+def send_smtp_email(subject: str, recipient_email: str, html_body: str) -> Dict[str, Any]:
+    """
+    Sends an HTML email using the configured SMTP credentials (tries TLS 587, then SSL 465).
+    Returns {"sent": bool, "error": Optional[str]}.
+    """
+    cfg = get_smtp_config()
+    smtp_user = cfg["smtp_email"]
+    smtp_pass = cfg["smtp_password"]
+    smtp_host = cfg["smtp_host"]
+    smtp_port = cfg["smtp_port"]
+
+    if not smtp_user or not smtp_pass:
+        return {
+            "sent": False,
+            "error": "SMTP App Password not configured yet. Configure it in Admin Panel -> SMTP Settings or .env."
+        }
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"Academic Marksheet Portal <{smtp_user}>"
+    msg["To"] = recipient_email
+    msg.attach(MIMEText(html_body, "html"))
+
+    # Attempt 1: STARTTLS (Port 587)
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_user, [recipient_email], msg.as_string())
+        logger.info(f"[SMTP] Email sent successfully via TLS to {recipient_email}")
+        return {"sent": True, "error": None}
+    except Exception as tls_err:
+        logger.warning(f"[SMTP] TLS port {smtp_port} attempt notice ({tls_err}), trying SSL 465...")
+        # Attempt 2: SSL (Port 465)
+        try:
+            with smtplib.SMTP_SSL(smtp_host, 465, timeout=10) as server:
+                server.login(smtp_user, smtp_pass)
+                server.sendmail(smtp_user, [recipient_email], msg.as_string())
+            logger.info(f"[SMTP] Email sent successfully via SSL 465 to {recipient_email}")
+            return {"sent": True, "error": None}
+        except Exception as ssl_err:
+            err_str = f"{ssl_err}"
+            logger.error(f"[SMTP] Failed to send email to {recipient_email}: {err_str}")
+            return {"sent": False, "error": err_str}
+
+
+# ==============================================================================
+# USER STORAGE HELPERS
+# ==============================================================================
 
 def _load_local_users() -> Dict[str, Dict[str, Any]]:
-    """Loads local fallback user store and ensures ADMIN_EMAIL is present."""
     users: Dict[str, Dict[str, Any]] = {}
     if os.path.exists(_LOCAL_USERS_FILE):
         try:
@@ -109,7 +267,6 @@ def _save_local_users(users: Dict[str, Dict[str, Any]]) -> None:
 
 
 def _sanitize_user(doc: Dict[str, Any]) -> Dict[str, Any]:
-    """Removes sensitive fields like password_hash and MongoDB _id before returning."""
     if not doc:
         return {}
     clean = dict(doc)
@@ -119,7 +276,6 @@ def _sanitize_user(doc: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _ensure_admin_exists(col) -> None:
-    """Ensures the primary admin account (hp5623699@gmail.com) exists in MongoDB."""
     if col is None:
         return
     try:
@@ -140,7 +296,6 @@ def _ensure_admin_exists(col) -> None:
                 "updated_at": now_iso,
                 "approved_by": ADMIN_EMAIL
             })
-            logger.info(f"[Auth] Seeded primary admin account: {ADMIN_EMAIL}")
         elif existing.get("role") != "admin" or existing.get("status") != "approved":
             col.update_one(
                 {"email": ADMIN_EMAIL},
@@ -150,67 +305,28 @@ def _ensure_admin_exists(col) -> None:
         logger.warning(f"[Auth] Ensure admin notice: {e}")
 
 
-def _try_send_email_notification(subject: str, recipient_email: str, html_body: str) -> bool:
+# ==============================================================================
+# STEP 1: SIGN UP (CREATE ACCOUNT WITH EMAIL & NEW PASSWORD)
+# ==============================================================================
+
+def signup_user_account(name: str, email: str, password: str) -> Dict[str, Any]:
     """
-    Attempts to send an email via SMTP if SMTP_EMAIL and SMTP_PASSWORD are set in environment.
-    Returns True if sent, False otherwise (never raises exception).
-    """
-    smtp_user = os.environ.get("SMTP_EMAIL", "").strip()
-    smtp_pass = os.environ.get("SMTP_PASSWORD", "").strip()
-    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip()
-    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-
-    if not smtp_user or not smtp_pass:
-        return False
-
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = smtp_user
-        msg["To"] = recipient_email
-        msg.attach(MIMEText(html_body, "html"))
-
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=8) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_user, [recipient_email], msg.as_string())
-        logger.info(f"[Auth Email] Sent email notification to {recipient_email}")
-        return True
-    except Exception as e:
-        logger.warning(f"[Auth Email] SMTP notification skipped/failed: {e}")
-        return False
-
-
-def register_join_request(
-    name: str,
-    email: str,
-    password: str,
-    requested_role: str,
-    department: str = "",
-    roll_or_id: str = "",
-    reason: str = ""
-) -> Dict[str, Any]:
-    """
-    Submits a new user join request for 'student' or 'faculty' role.
-    If the email is ADMIN_EMAIL (hp5623699@gmail.com), automatically grants 'admin' role and approves immediately.
+    Step 1 for first-time visitors: Sign up with Name, Email, and New Password.
+    - If email is ADMIN_EMAIL (hp5623699@gmail.com), directly logs them in as Admin.
+    - For regular users, creates account with status='unrequested' so they proceed
+      immediately to Step 2: Select Student/Faculty Role & Send Join Request to Admin.
     """
     clean_email = (email or "").strip().lower()
     clean_name = (name or "").strip()
-    req_role = (requested_role or "student").strip().lower()
 
     if not clean_email or "@" not in clean_email:
-        raise ValueError("Please provide a valid email address.")
+        raise ValueError("Please enter a valid email address.")
     if not clean_name:
-        raise ValueError("Please provide your full name.")
+        raise ValueError("Please enter your full name.")
     if not password or len(password) < 4:
         raise ValueError("Password must be at least 4 characters long.")
 
-    if req_role not in ("student", "faculty", "admin"):
-        req_role = "student"
-
-    is_admin_email = (clean_email == ADMIN_EMAIL.lower())
-    final_role = "admin" if is_admin_email else req_role
-    final_status = "approved" if is_admin_email else "pending"
+    is_admin = (clean_email == ADMIN_EMAIL.lower())
     now_iso = datetime.datetime.utcnow().isoformat() + "Z"
     pw_hash = _hash_password(password)
 
@@ -219,92 +335,175 @@ def register_join_request(
         _ensure_admin_exists(col)
         existing = col.find_one({"email": clean_email})
 
-        if existing:
-            if is_admin_email:
-                col.update_one(
-                    {"email": clean_email},
-                    {"$set": {
-                        "name": clean_name,
-                        "password_hash": pw_hash,
-                        "role": "admin",
-                        "requested_role": "admin",
-                        "status": "approved",
-                        "updated_at": now_iso
-                    }}
-                )
-                updated_doc = col.find_one({"email": clean_email})
-                user_clean = _sanitize_user(updated_doc)
-                return {
+        if is_admin:
+            col.update_one(
+                {"email": clean_email},
+                {"$set": {
+                    "name": clean_name or "System Administrator",
+                    "password_hash": pw_hash,
+                    "role": "admin",
+                    "requested_role": "admin",
                     "status": "approved",
-                    "message": "Admin account configured and approved.",
-                    "user": user_clean,
-                    "token": _generate_session_token(clean_email, "admin")
-                }
+                    "updated_at": now_iso
+                }},
+                upsert=True
+            )
+            admin_doc = col.find_one({"email": clean_email})
+            return {
+                "status": "approved",
+                "user": _sanitize_user(admin_doc),
+                "token": _generate_session_token(clean_email, "admin"),
+                "message": "Admin account ready! Redirecting to Admin Control Panel..."
+            }
 
+        if existing:
             if existing.get("status") == "approved":
                 raise ValueError(
-                    f"An approved account for {clean_email} already exists with role '{existing.get('role', 'student').upper()}'. Please sign in on the Login tab."
+                    f"An approved account for {clean_email} already exists. Please use the Login tab."
                 )
-
-            # Update existing pending or rejected request
             col.update_one(
                 {"email": clean_email},
                 {"$set": {
                     "name": clean_name,
                     "password_hash": pw_hash,
-                    "requested_role": req_role,
-                    "role": req_role,
-                    "status": "pending",
-                    "department": department.strip(),
-                    "roll_or_id": roll_or_id.strip(),
-                    "reason": reason.strip(),
                     "updated_at": now_iso
                 }}
             )
             doc = col.find_one({"email": clean_email})
         else:
-            new_doc = {
+            doc = {
                 "name": clean_name,
                 "email": clean_email,
                 "password_hash": pw_hash,
-                "role": final_role,
-                "requested_role": final_role,
-                "status": final_status,
-                "department": department.strip(),
-                "roll_or_id": roll_or_id.strip(),
-                "reason": reason.strip(),
+                "role": "student",
+                "requested_role": "",
+                "status": "unrequested",
+                "department": "",
+                "roll_or_id": "",
+                "reason": "",
                 "created_at": now_iso,
                 "updated_at": now_iso,
-                "approved_by": ADMIN_EMAIL if is_admin_email else None
+                "approved_by": None
             }
-            col.insert_one(new_doc)
-            doc = new_doc
+            col.insert_one(doc)
     else:
-        # Local fallback
         users = _load_local_users()
         existing = users.get(clean_email)
-        if existing and not is_admin_email and existing.get("status") == "approved":
-            raise ValueError(
-                f"An approved account for {clean_email} already exists. Please sign in on the Login tab."
-            )
+        if existing and not is_admin and existing.get("status") == "approved":
+            raise ValueError(f"An approved account for {clean_email} already exists. Please use the Login tab.")
         doc = {
             "name": clean_name,
             "email": clean_email,
             "password_hash": pw_hash,
+            "role": "admin" if is_admin else "student",
+            "requested_role": "admin" if is_admin else "",
+            "status": "approved" if is_admin else (existing.get("status", "unrequested") if existing else "unrequested"),
+            "department": existing.get("department", "") if existing else "",
+            "roll_or_id": existing.get("roll_or_id", "") if existing else "",
+            "reason": "",
+            "created_at": existing.get("created_at", now_iso) if existing else now_iso,
+            "updated_at": now_iso,
+            "approved_by": ADMIN_EMAIL if is_admin else None
+        }
+        users[clean_email] = doc
+        _save_local_users(users)
+
+    user_clean = _sanitize_user(doc)
+    return {
+        "status": user_clean.get("status", "unrequested"),
+        "user": user_clean,
+        "admin_email": ADMIN_EMAIL,
+        "message": "Account created! Please select your role and send your join request to the Admin."
+    }
+
+
+# ==============================================================================
+# STEP 2: SEND ROLE JOIN REQUEST TO ADMIN (WITH SMTP EMAIL TO ADMIN)
+# ==============================================================================
+
+def register_join_request(
+    name: str,
+    email: str,
+    password: str = "",
+    requested_role: str = "student",
+    department: str = "",
+    roll_or_id: str = "",
+    reason: str = ""
+) -> Dict[str, Any]:
+    """
+    Submits the user's role request ('student' or 'faculty') to the Admin (hp5623699@gmail.com).
+    Saves status='pending' in MongoDB AND dispatches an SMTP notification email to hp5623699@gmail.com.
+    """
+    clean_email = (email or "").strip().lower()
+    clean_name = (name or "").strip()
+    req_role = (requested_role or "student").strip().lower()
+    if req_role not in ("student", "faculty", "admin"):
+        req_role = "student"
+
+    if not clean_email or "@" not in clean_email:
+        raise ValueError("Valid email address is required.")
+
+    is_admin_email = (clean_email == ADMIN_EMAIL.lower())
+    final_role = "admin" if is_admin_email else req_role
+    final_status = "approved" if is_admin_email else "pending"
+    now_iso = datetime.datetime.utcnow().isoformat() + "Z"
+
+    col = get_users_collection()
+    doc = None
+
+    if col is not None:
+        _ensure_admin_exists(col)
+        existing = col.find_one({"email": clean_email})
+        update_data: Dict[str, Any] = {
             "role": final_role,
             "requested_role": final_role,
             "status": final_status,
             "department": department.strip(),
             "roll_or_id": roll_or_id.strip(),
             "reason": reason.strip(),
-            "created_at": existing.get("created_at", now_iso) if existing else now_iso,
+            "updated_at": now_iso
+        }
+        if clean_name:
+            update_data["name"] = clean_name
+        if password and len(password) >= 4:
+            update_data["password_hash"] = _hash_password(password)
+
+        if existing:
+            col.update_one({"email": clean_email}, {"$set": update_data})
+            doc = col.find_one({"email": clean_email})
+        else:
+            if not password or len(password) < 4:
+                raise ValueError("Password is required to create an account.")
+            update_data.update({
+                "email": clean_email,
+                "name": clean_name or clean_email.split("@")[0],
+                "password_hash": _hash_password(password),
+                "created_at": now_iso,
+                "approved_by": ADMIN_EMAIL if is_admin_email else None
+            })
+            col.insert_one(update_data)
+            doc = update_data
+    else:
+        users = _load_local_users()
+        existing = users.get(clean_email, {})
+        doc = {
+            "name": clean_name or existing.get("name", "User"),
+            "email": clean_email,
+            "password_hash": _hash_password(password) if password else existing.get("password_hash", ""),
+            "role": final_role,
+            "requested_role": final_role,
+            "status": final_status,
+            "department": department.strip(),
+            "roll_or_id": roll_or_id.strip(),
+            "reason": reason.strip(),
+            "created_at": existing.get("created_at", now_iso),
             "updated_at": now_iso,
             "approved_by": ADMIN_EMAIL if is_admin_email else None
         }
         users[clean_email] = doc
         _save_local_users(users)
 
-    # Also mirror to local cache for offline resilience
+    # Mirror to local cache
     try:
         users = _load_local_users()
         users[clean_email] = dict(doc)
@@ -313,25 +512,62 @@ def register_join_request(
     except Exception:
         pass
 
-    # Attempt optional SMTP email to Admin
-    email_sent = False
+    applicant_name = doc.get("name", clean_name or "New User")
+
+    # Send SMTP Notification Email to Admin (hp5623699@gmail.com)
+    smtp_res = {"sent": False, "error": None}
     if not is_admin_email:
         html_body = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
-            <h2 style="color: #1e40af; margin-top: 0;">New Portal Role Join Request</h2>
-            <p>A new user has requested access to the <strong>Academic Exam & Marksheet Portal</strong>:</p>
-            <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-                <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Full Name:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{clean_name}</td></tr>
-                <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Email:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{clean_email}</td></tr>
-                <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Requested Role:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong style="color: #2563eb;">{req_role.upper()}</strong></td></tr>
-                <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Department / Branch:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{department or 'N/A'}</td></tr>
-                <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Roll No / ID:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{roll_or_id or 'N/A'}</td></tr>
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+            <div style="background: linear-gradient(135deg, #1e40af, #4f46e5); color: #ffffff; padding: 18px 22px; border-radius: 8px; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 18px;">New Role Access Join Request</h2>
+                <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">Academic Exam & Marksheet Portal</p>
+            </div>
+            <p style="color: #334155; font-size: 14px; line-height: 1.5;">
+                Hello Admin (<strong>{ADMIN_EMAIL}</strong>),<br><br>
+                A new user has signed up and sent a join request for portal access. Here are the requestor's details:
+            </p>
+            <table style="width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14px;">
+                <tr>
+                    <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold; width: 38%;">Requestor Name:</td>
+                    <td style="padding: 10px 12px; border: 1px solid #e2e8f0;">{applicant_name}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold;">Requestor Email:</td>
+                    <td style="padding: 10px 12px; border: 1px solid #e2e8f0;"><a href="mailto:{clean_email}">{clean_email}</a></td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold;">Requested Role:</td>
+                    <td style="padding: 10px 12px; border: 1px solid #e2e8f0;"><strong style="color: #2563eb; text-transform: uppercase;">{req_role.upper()}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold;">Department / Branch:</td>
+                    <td style="padding: 10px 12px; border: 1px solid #e2e8f0;">{department or 'Not specified'}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold;">Roll No / Faculty ID:</td>
+                    <td style="padding: 10px 12px; border: 1px solid #e2e8f0;">{roll_or_id or 'Not specified'}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold;">Requested At:</td>
+                    <td style="padding: 10px 12px; border: 1px solid #e2e8f0;">{now_iso}</td>
+                </tr>
             </table>
-            <p>Please log into the <strong>Admin Control Panel</strong> ({ADMIN_EMAIL}) to verify and approve this request.</p>
+            <p style="color: #334155; font-size: 14px; line-height: 1.5;">
+                To verify and accept this request, please open the <strong>Admin Control Panel</strong>:
+            </p>
+            <div style="margin: 22px 0;">
+                <a href="{PORTAL_PUBLIC_URL}/admin" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 22px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">
+                    Open Admin Control Panel to Approve
+                </a>
+            </div>
+            <p style="color: #64748b; font-size: 12px; margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+                This is an automated notification from the Academic Exam & Marksheet Portal.
+            </p>
         </div>
         """
-        email_sent = _try_send_email_notification(
-            subject=f"[Portal Join Request] {clean_name} requested {req_role.upper()} role",
+        smtp_res = send_smtp_email(
+            subject=f"[Portal Join Request] {applicant_name} ({clean_email}) requested {req_role.upper()} role",
             recipient_email=ADMIN_EMAIL,
             html_body=html_body
         )
@@ -340,12 +576,13 @@ def register_join_request(
     result = {
         "status": final_status,
         "admin_email": ADMIN_EMAIL,
-        "email_notification_sent": email_sent,
+        "email_notification_sent": smtp_res["sent"],
+        "smtp_error": smtp_res["error"],
         "user": user_clean,
         "message": (
             "Admin account active!"
             if is_admin_email
-            else f"Join request for {req_role.upper()} role sent to Admin ({ADMIN_EMAIL}). Waiting for approval."
+            else f"Join request for {req_role.upper()} role submitted! Notification sent to Admin ({ADMIN_EMAIL})."
         )
     }
     if is_admin_email:
@@ -353,19 +590,28 @@ def register_join_request(
     return result
 
 
+# ==============================================================================
+# LOGIN AUTHENTICATION (ADMIN DIRECT LANDING + USER STATUS CHECK)
+# ==============================================================================
+
 def authenticate_user(email: str, password: str) -> Dict[str, Any]:
     """
-    Authenticates a user by email and password.
-    Checks approval status and returns role & token if approved.
+    Authenticates a user or Admin with email and password.
+    - If email == hp5623699@gmail.com and password == Admin@123 (or stored hash),
+      directly approves and returns role='admin' so Admin lands directly on /admin!
+    - If user has status == 'unrequested', prompts them to send their Role Join Request.
+    - If user has status == 'pending', shows pending approval screen.
+    - If user has status == 'approved', logs them into their Student or Faculty portal.
     """
     clean_email = (email or "").strip().lower()
     if not clean_email or not password:
         raise ValueError("Please enter both email and password.")
 
     pw_hash = _hash_password(password)
-    doc = None
+    is_admin_email = (clean_email == ADMIN_EMAIL.lower())
 
     col = get_users_collection()
+    doc = None
     if col is not None:
         _ensure_admin_exists(col)
         doc = col.find_one({"email": clean_email})
@@ -374,30 +620,55 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
         users = _load_local_users()
         doc = users.get(clean_email)
 
-    if not doc:
-        raise ValueError("No account or join request found for this email. Please submit a Join Request first.")
+    # Guarantee Admin login with hp5623699@gmail.com + Admin@123
+    if is_admin_email and (password == DEFAULT_ADMIN_PASSWORD or (doc and doc.get("password_hash") == pw_hash)):
+        now_iso = datetime.datetime.utcnow().isoformat() + "Z"
+        admin_user = {
+            "name": doc.get("name", "System Administrator") if doc else "System Administrator",
+            "email": ADMIN_EMAIL,
+            "role": "admin",
+            "requested_role": "admin",
+            "status": "approved",
+            "department": "Administration",
+            "created_at": doc.get("created_at", now_iso) if doc else now_iso,
+            "updated_at": now_iso
+        }
+        return {
+            "status": "approved",
+            "admin_email": ADMIN_EMAIL,
+            "user": admin_user,
+            "token": _generate_session_token(ADMIN_EMAIL, "admin"),
+            "message": "Welcome Administrator! Redirecting to Admin Control Panel..."
+        }
 
-    # Verify password (for ADMIN_EMAIL, also allow default password if not custom-set)
+    if not doc:
+        raise ValueError("No account found for this email. Please switch to the Sign Up tab to create your account first.")
+
     stored_hash = doc.get("password_hash", "")
     if stored_hash != pw_hash:
-        raise ValueError("Invalid password. Please check your credentials and try again.")
+        raise ValueError("Invalid password. Please check your password and try again.")
 
-    status = doc.get("status", "pending")
+    status = doc.get("status", "unrequested")
     role = doc.get("role", doc.get("requested_role", "student"))
-    if clean_email == ADMIN_EMAIL.lower():
-        status = "approved"
-        role = "admin"
 
     user_clean = _sanitize_user(doc)
     user_clean["status"] = status
     user_clean["role"] = role
+
+    if status == "unrequested":
+        return {
+            "status": "unrequested",
+            "admin_email": ADMIN_EMAIL,
+            "user": user_clean,
+            "message": "Please select your role (Student or Faculty) and send a join request to the Admin."
+        }
 
     if status == "pending":
         return {
             "status": "pending",
             "admin_email": ADMIN_EMAIL,
             "user": user_clean,
-            "message": f"Your join request for the {role.upper()} role is currently pending approval by Admin ({ADMIN_EMAIL})."
+            "message": f"Your join request for the {role.upper()} role is awaiting approval from Admin ({ADMIN_EMAIL})."
         }
 
     if status == "rejected":
@@ -405,7 +676,7 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
             "status": "rejected",
             "admin_email": ADMIN_EMAIL,
             "user": user_clean,
-            "message": f"Your join request was declined by the Administrator ({ADMIN_EMAIL})."
+            "message": f"Your join request was declined by the Administrator ({ADMIN_EMAIL}). You may submit a new role request."
         }
 
     token = _generate_session_token(clean_email, role)
@@ -419,7 +690,6 @@ def authenticate_user(email: str, password: str) -> Dict[str, Any]:
 
 
 def get_user_status(email: str) -> Dict[str, Any]:
-    """Returns the latest status and role for a given email."""
     clean_email = (email or "").strip().lower()
     if not clean_email:
         raise ValueError("Email is required.")
@@ -458,10 +728,6 @@ def get_user_status(email: str) -> Dict[str, Any]:
 
 
 def list_all_users(admin_email: str) -> Dict[str, Any]:
-    """
-    Lists all registered users and join requests for the Admin Control Panel.
-    Only accessible by ADMIN_EMAIL (hp5623699@gmail.com).
-    """
     if (admin_email or "").strip().lower() != ADMIN_EMAIL.lower():
         raise PermissionError(f"Unauthorized: Only {ADMIN_EMAIL} can access Admin User Management.")
 
@@ -476,8 +742,7 @@ def list_all_users(admin_email: str) -> Dict[str, Any]:
         users = _load_local_users()
         docs = [_sanitize_user(u) for u in users.values()]
 
-    # Sort: pending first, then by updated_at / created_at descending
-    status_priority = {"pending": 0, "approved": 1, "rejected": 2}
+    status_priority = {"pending": 0, "unrequested": 1, "approved": 2, "rejected": 3}
     docs.sort(
         key=lambda x: (
             status_priority.get(x.get("status", "pending"), 9),
@@ -492,9 +757,13 @@ def list_all_users(admin_email: str) -> Dict[str, Any]:
     approved_students = sum(1 for u in docs if u.get("status") == "approved" and u.get("role") == "student")
     rejected_count = sum(1 for u in docs if u.get("status") == "rejected")
 
+    smtp_cfg = get_smtp_config()
+
     return {
         "status": "success",
         "admin_email": ADMIN_EMAIL,
+        "smtp_configured": smtp_cfg["is_configured"],
+        "smtp_email": smtp_cfg["smtp_email"],
         "summary": {
             "total": len(docs),
             "pending": pending_count,
@@ -506,6 +775,10 @@ def list_all_users(admin_email: str) -> Dict[str, Any]:
     }
 
 
+# ==============================================================================
+# ADMIN APPROVAL & CONFIRMATION EMAIL TO REQUESTOR
+# ==============================================================================
+
 def update_user_access(
     admin_email: str,
     target_email: str,
@@ -513,9 +786,8 @@ def update_user_access(
     assigned_role: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Allows Admin (hp5623699@gmail.com) to approve, reject, revoke, or change role for a user.
-    action: 'approve' | 'reject' | 'change_role' | 'pending'
-    assigned_role: 'student' | 'faculty' | 'admin'
+    Approves, rejects, or changes role for a user request, and automatically sends
+    an SMTP Confirmation Email to the requestor!
     """
     if (admin_email or "").strip().lower() != ADMIN_EMAIL.lower():
         raise PermissionError(f"Unauthorized: Only {ADMIN_EMAIL} can modify user roles and approvals.")
@@ -572,7 +844,6 @@ def update_user_access(
         _save_local_users(users)
         updated_doc = users[clean_target]
 
-    # Sync local cache
     try:
         users = _load_local_users()
         if clean_target in users:
@@ -581,26 +852,74 @@ def update_user_access(
     except Exception:
         pass
 
-    # Optional SMTP notification to the user upon approval
-    if new_status == "approved":
+    user_name = updated_doc.get("name", "User")
+    smtp_res = {"sent": False, "error": None}
+
+    # Send Confirmation Email via SMTP to Requestor when Admin approves or rejects
+    if action in ("approve", "change_role") and new_status == "approved":
         html_body = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
-            <h2 style="color: #16a34a; margin-top: 0;">Your Portal Join Request Has Been Approved!</h2>
-            <p>Hello <strong>{updated_doc.get('name', 'User')}</strong>,</p>
-            <p>The Portal Administrator (<strong>{ADMIN_EMAIL}</strong>) has verified and approved your account.</p>
-            <p><strong>Assigned Role:</strong> <span style="color: #2563eb; font-weight: bold;">{new_role.upper()}</span></p>
-            <p>You can now sign in with your registered email and password.</p>
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+            <div style="background: linear-gradient(135deg, #16a34a, #15803d); color: #ffffff; padding: 18px 22px; border-radius: 8px; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 18px;">Join Request Approved! 🎉</h2>
+                <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">Academic Exam & Marksheet Portal</p>
+            </div>
+            <p style="color: #334155; font-size: 14px; line-height: 1.5;">
+                Hello <strong>{user_name}</strong>,<br><br>
+                Your join request has been verified and <strong>APPROVED</strong> by the Portal Administrator (<strong>{ADMIN_EMAIL}</strong>).
+            </p>
+            <table style="width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14px;">
+                <tr>
+                    <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold; width: 38%;">Registered Email:</td>
+                    <td style="padding: 10px 12px; border: 1px solid #e2e8f0;">{clean_target}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold;">Assigned Role:</td>
+                    <td style="padding: 10px 12px; border: 1px solid #e2e8f0;"><strong style="color: #16a34a; text-transform: uppercase;">{new_role.upper()}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; font-weight: bold;">Approved By:</td>
+                    <td style="padding: 10px 12px; border: 1px solid #e2e8f0;">{ADMIN_EMAIL}</td>
+                </tr>
+            </table>
+            <p style="color: #334155; font-size: 14px; line-height: 1.5;">
+                You can now log in to your <strong>{new_role.upper()} Portal</strong> using your email and password:
+            </p>
+            <div style="margin: 22px 0;">
+                <a href="{PORTAL_PUBLIC_URL}/login" style="background: #16a34a; color: #ffffff; text-decoration: none; padding: 12px 22px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">
+                    Sign In to Portal Now
+                </a>
+            </div>
+            <p style="color: #64748b; font-size: 12px; margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+                Academic Exam & Marksheet Portal • Admin: {ADMIN_EMAIL}
+            </p>
         </div>
         """
-        _try_send_email_notification(
-            subject=f"Access Approved: {new_role.upper()} Role Granted — Academic Marksheet Portal",
+        smtp_res = send_smtp_email(
+            subject=f"Access Approved: {new_role.upper()} Role Granted — Academic Exam & Marksheet Portal",
+            recipient_email=clean_target,
+            html_body=html_body
+        )
+    elif action == "reject":
+        html_body = f"""
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+            <h2 style="color: #dc2626; margin-top: 0;">Join Request Status Update</h2>
+            <p>Hello <strong>{user_name}</strong>,</p>
+            <p>Your join request for the Academic Exam & Marksheet Portal could not be approved at this time.</p>
+            <p>If you believe this was a mistake, please contact the Administrator at <a href="mailto:{ADMIN_EMAIL}">{ADMIN_EMAIL}</a>.</p>
+        </div>
+        """
+        smtp_res = send_smtp_email(
+            subject="Portal Join Request Update — Academic Exam & Marksheet Portal",
             recipient_email=clean_target,
             html_body=html_body
         )
 
+    email_note = " & confirmation email sent!" if smtp_res["sent"] else ""
     return {
         "status": "success",
-        "message": f"User {clean_target} updated: status={new_status.upper()}, role={new_role.upper()}",
+        "email_sent": smtp_res["sent"],
+        "smtp_error": smtp_res["error"],
+        "message": f"User {clean_target} updated ({new_status.upper()} as {new_role.upper()}){email_note}",
         "user": _sanitize_user(updated_doc)
     }
 
@@ -614,7 +933,6 @@ def admin_create_user(
     department: str = "",
     roll_or_id: str = ""
 ) -> Dict[str, Any]:
-    """Allows Admin to directly create and pre-approve a Student or Faculty account."""
     if (admin_email or "").strip().lower() != ADMIN_EMAIL.lower():
         raise PermissionError(f"Unauthorized: Only {ADMIN_EMAIL} can directly create users.")
 
@@ -664,7 +982,6 @@ def admin_create_user(
 
 
 def delete_user_account(admin_email: str, target_email: str) -> Dict[str, Any]:
-    """Allows Admin to delete a user request or account."""
     if (admin_email or "").strip().lower() != ADMIN_EMAIL.lower():
         raise PermissionError(f"Unauthorized: Only {ADMIN_EMAIL} can delete user accounts.")
 

@@ -762,10 +762,16 @@ def export_master_csv_endpoint(classroom_id: str):
 # AUTHENTICATION, JOIN REQUESTS & ADMIN ACCESS CONTROL ENDPOINTS
 # ==============================================================================
 
-class JoinRequestPayload(BaseModel):
+class SignUpPayload(BaseModel):
     name: str
     email: str
     password: str
+
+
+class JoinRequestPayload(BaseModel):
+    name: Optional[str] = ""
+    email: str
+    password: Optional[str] = ""
     requested_role: str = "student"
     department: Optional[str] = ""
     roll_or_id: Optional[str] = ""
@@ -799,15 +805,36 @@ class AdminDeleteUserPayload(BaseModel):
     target_email: str
 
 
+class AdminSmtpConfigPayload(BaseModel):
+    admin_email: str
+    smtp_email: Optional[str] = "hp5623699@gmail.com"
+    smtp_password: str
+    smtp_host: Optional[str] = "smtp.gmail.com"
+    smtp_port: Optional[int] = 587
+
+
+@app.post("/api/auth/signup")
+def signup_user_endpoint(req: SignUpPayload):
+    """Step 1: Registers a new user account with Name, Email, and Password."""
+    try:
+        from backend.services.auth_service import signup_user_account
+        return signup_user_account(name=req.name, email=req.email, password=req.password)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.exception("User signup failed")
+        raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
+
+
 @app.post("/api/auth/register")
 def register_join_request_endpoint(req: JoinRequestPayload):
-    """Submits a join request for Student or Faculty role (or initializes Admin)."""
+    """Step 2: Submits a join request for Student or Faculty role and sends SMTP notification to Admin."""
     try:
         from backend.services.auth_service import register_join_request
         res = register_join_request(
-            name=req.name,
+            name=req.name or "",
             email=req.email,
-            password=req.password,
+            password=req.password or "",
             requested_role=req.requested_role,
             department=req.department or "",
             roll_or_id=req.roll_or_id or "",
@@ -863,7 +890,7 @@ def list_admin_users_endpoint(admin_email: str):
 
 @app.post("/api/admin/update-access")
 def admin_update_access_endpoint(req: AdminUpdateAccessPayload):
-    """Approves, rejects, or changes role for a user request."""
+    """Approves, rejects, or changes role for a user request and sends SMTP confirmation email."""
     try:
         from backend.services.auth_service import update_user_access
         return update_user_access(
@@ -920,5 +947,54 @@ def admin_delete_user_endpoint(req: AdminDeleteUserPayload):
     except Exception as e:
         logger.exception("Admin delete user failed")
         raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
+
+
+@app.post("/api/admin/smtp-config")
+def admin_save_smtp_config_endpoint(req: AdminSmtpConfigPayload):
+    """Saves Gmail SMTP App Password in MongoDB Atlas for automated email dispatch."""
+    try:
+        from backend.services.auth_service import save_smtp_config
+        return save_smtp_config(
+            admin_email=req.admin_email,
+            smtp_email=req.smtp_email or "hp5623699@gmail.com",
+            smtp_password=req.smtp_password,
+            smtp_host=req.smtp_host or "smtp.gmail.com",
+            smtp_port=req.smtp_port or 587
+        )
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.exception("Save SMTP config failed")
+        raise HTTPException(status_code=500, detail=f"Failed to save SMTP config: {str(e)}")
+
+
+@app.post("/api/admin/smtp-test")
+def admin_test_smtp_endpoint(req: AdminDeleteUserPayload):
+    """Sends a test email via SMTP to verify the configuration."""
+    try:
+        from backend.services.auth_service import send_smtp_email, ADMIN_EMAIL
+        if (req.admin_email or "").strip().lower() != ADMIN_EMAIL.lower():
+            raise HTTPException(status_code=403, detail="Unauthorized")
+        res = send_smtp_email(
+            subject="SMTP Test Successful — Academic Exam & Marksheet Portal",
+            recipient_email=req.target_email or ADMIN_EMAIL,
+            html_body=f"""
+            <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+                <h2 style="color: #16a34a; margin-top: 0;">SMTP Mail Service Active!</h2>
+                <p>Your automated email service for <strong>{ADMIN_EMAIL}</strong> is working properly.</p>
+                <p>Join request notifications and approval confirmation emails will now be delivered automatically.</p>
+            </div>
+            """
+        )
+        if not res["sent"]:
+            raise HTTPException(status_code=400, detail=f"SMTP test failed: {res['error']}")
+        return {"status": "success", "message": f"Test email sent successfully to {req.target_email or ADMIN_EMAIL}!"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 

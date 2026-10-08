@@ -574,6 +574,44 @@
         </div>
 
         <!-- =============================================================== -->
+        <!-- 2.5 SMTP EMAIL SERVICE CONFIGURATION (GMAIL APP PASSWORD) -->
+        <!-- =============================================================== -->
+        <div class="admin-section-card">
+            <div class="admin-section-header">
+                <h2>
+                    <i class="fa-solid fa-envelope-circle-check" style="color: #16a34a;"></i>
+                    SMTP Email Notification Service (hp5623699@gmail.com)
+                    <span id="badgeSmtpStatus" style="background: #fef3c7; color: #b45309; padding: 3px 10px; border-radius: 999px; font-size: 0.76rem;">Checking...</span>
+                </h2>
+                <span style="font-size: 0.82rem; color: #64748b;">
+                    Sends automated join-request emails to Admin & approval confirmation emails to users
+                </span>
+            </div>
+            <div class="admin-section-body">
+                <form id="formSmtpConfig" class="direct-create-grid">
+                    <div>
+                        <label>Admin Sender Gmail</label>
+                        <input type="email" id="smtpEmailInput" value="hp5623699@gmail.com" readonly style="background: #f1f5f9;">
+                    </div>
+                    <div style="grid-column: span 2;">
+                        <label>16-Digit Google App Password (from Google Account → Security → App Passwords) *</label>
+                        <input type="password" id="smtpPasswordInput" placeholder="e.g., abcd efgh ijkl mnop" required>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn-approve" style="width: 100%; justify-content: center; padding: 10px; background: #2563eb;">
+                            <i class="fa-solid fa-floppy-disk"></i> Save SMTP App Password
+                        </button>
+                    </div>
+                    <div>
+                        <button type="button" id="btnTestSmtpEmail" class="admin-nav-link" style="width: 100%; justify-content: center; padding: 10px;">
+                            <i class="fa-solid fa-paper-plane"></i> Send Test Email
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- =============================================================== -->
         <!-- 3. ALL USERS & ROLE DIRECTORY -->
         <!-- =============================================================== -->
         <div class="admin-section-card">
@@ -710,6 +748,19 @@ Portal Administrator (${ADMIN_EMAIL})`
                 document.getElementById('kpiStudentCount').innerText = sum.approved_students || 0;
                 document.getElementById('kpiTotalCount').innerText = sum.total || 0;
                 document.getElementById('badgePendingHeader').innerText = `${sum.pending || 0} waiting`;
+
+                const badgeSmtp = document.getElementById('badgeSmtpStatus');
+                if (badgeSmtp) {
+                    if (data.smtp_configured) {
+                        badgeSmtp.innerText = 'SMTP Active & Ready';
+                        badgeSmtp.style.background = '#dcfce7';
+                        badgeSmtp.style.color = '#15803d';
+                    } else {
+                        badgeSmtp.innerText = 'App Password Needed';
+                        badgeSmtp.style.background = '#fef3c7';
+                        badgeSmtp.style.color = '#b45309';
+                    }
+                }
 
                 renderPendingQueue();
                 renderUsersTable();
@@ -993,6 +1044,63 @@ Portal Administrator (${ADMIN_EMAIL})`
         document.getElementById('btnRefreshUsers').addEventListener('click', () => {
             loadAdminUsers();
             showAdminToast('Refreshed user requests from MongoDB Atlas');
+        });
+
+        // Save SMTP App Password Form
+        document.getElementById('formSmtpConfig').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const smtpPassword = document.getElementById('smtpPasswordInput').value.trim();
+            if (!smtpPassword) return;
+
+            try {
+                const res = await fetch('/api/admin/smtp-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        admin_email: ADMIN_EMAIL,
+                        smtp_email: ADMIN_EMAIL,
+                        smtp_password: smtpPassword
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAdminToast(data.message || 'SMTP App Password saved!');
+                    document.getElementById('smtpPasswordInput').value = '';
+                    loadAdminUsers();
+                } else {
+                    alert(data.detail || 'Failed to save SMTP settings.');
+                }
+            } catch (err) {
+                alert('Network error saving SMTP config.');
+            }
+        });
+
+        // Send Test Email Button
+        document.getElementById('btnTestSmtpEmail').addEventListener('click', async () => {
+            const btn = document.getElementById('btnTestSmtpEmail');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
+            try {
+                const res = await fetch('/api/admin/smtp-test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        admin_email: ADMIN_EMAIL,
+                        target_email: ADMIN_EMAIL
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAdminToast(data.message || 'Test email sent to hp5623699@gmail.com!');
+                } else {
+                    alert(data.detail || 'SMTP test failed. Make sure your 16-digit Google App Password is saved.');
+                }
+            } catch (err) {
+                alert('Network error testing SMTP.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Test Email';
+            }
         });
 
         // Initial Load
