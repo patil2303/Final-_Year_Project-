@@ -14,13 +14,31 @@
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="css/style.css?v=4.1">
+    <link rel="stylesheet" href="css/style.css?v=4.2">
+    <script>
+        // Immediate Auth Guard: Redirect unauthenticated visitors to /login
+        (function () {
+            try {
+                const raw = localStorage.getItem('portal_auth_session_v1');
+                if (!raw) {
+                    window.location.replace('/login');
+                    return;
+                }
+                const session = JSON.parse(raw);
+                if (!session || !session.user || !session.user.email) {
+                    window.location.replace('/login');
+                }
+            } catch (e) {
+                window.location.replace('/login');
+            }
+        })();
+    </script>
 </head>
 
 <body>
     <div class="app-layout">
 
-        <!-- Navbar Header with Dual Portal Switcher -->
+        <!-- Navbar Header with Role-Based Portal Controls -->
         <header class="navbar">
             <div class="brand">
                 <div class="brand-icon">
@@ -32,14 +50,31 @@
                 </div>
             </div>
 
-            <!-- Dual Portal Mode Switcher -->
-            <div class="portal-nav-switcher">
-                <button class="portal-tab-btn active" id="tabStudentPortal">
-                    <i class="fa-solid fa-user-graduate"></i> Student Portal
-                </button>
-                <button class="portal-tab-btn" id="tabFacultyPortal">
-                    <i class="fa-solid fa-chalkboard-user"></i> Faculty Dashboard
-                </button>
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <!-- Dual Portal Mode Switcher (Filtered by User Role) -->
+                <div class="portal-nav-switcher" id="portalNavSwitcher">
+                    <button class="portal-tab-btn active" id="tabStudentPortal">
+                        <i class="fa-solid fa-user-graduate"></i> Student Portal
+                    </button>
+                    <button class="portal-tab-btn" id="tabFacultyPortal">
+                        <i class="fa-solid fa-chalkboard-user"></i> Faculty Dashboard
+                    </button>
+                    <a href="/admin" class="portal-tab-btn" id="btnNavAdminPanel" style="display: none; text-decoration: none; color: #7e22ce; background: #f3e8ff;">
+                        <i class="fa-solid fa-user-shield"></i> Admin Panel
+                    </a>
+                </div>
+
+                <!-- Logged-In User Identity & Logout -->
+                <div id="navUserBadgeContainer" style="display: flex; align-items: center; gap: 10px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 10px;">
+                    <div style="text-align: right; line-height: 1.2;">
+                        <strong id="navUserName" style="display: block; font-size: 0.82rem; color: #0f172a;">User</strong>
+                        <span id="navUserRoleBadge" style="font-size: 0.7rem; font-weight: 700; color: #2563eb; text-transform: uppercase;">Role</span>
+                    </div>
+                    <button type="button" id="btnNavLogout" title="Sign Out"
+                        style="border: 1px solid #fecaca; background: #fef2f2; color: #dc2626; padding: 7px 11px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                        <i class="fa-solid fa-right-from-bracket"></i> Logout
+                    </button>
+                </div>
             </div>
         </header>
 

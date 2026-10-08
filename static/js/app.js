@@ -106,92 +106,146 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnLockFacultySession = document.getElementById('btnLockFacultySession');
 
     // ------------------------------------------------------------------
-    // 1. Dual Portal Mode Switcher & Security Barrier
+    // 1. Role-Based Access Control (Student / Faculty / Admin)
     // ------------------------------------------------------------------
-    function isFacultyUnlocked() {
-        return sessionStorage.getItem('faculty_unlocked') === 'true';
-    }
+    const AUTH_STORAGE_KEY = 'portal_auth_session_v1';
+    const ADMIN_EMAIL = 'hp5623699@gmail.com';
+    const navUserName = document.getElementById('navUserName');
+    const navUserRoleBadge = document.getElementById('navUserRoleBadge');
+    const btnNavAdminPanel = document.getElementById('btnNavAdminPanel');
+    const btnNavLogout = document.getElementById('btnNavLogout');
 
-    function openFacultyAuthModal() {
-        if (facultyPasscodeInput) facultyPasscodeInput.value = '';
-        if (facultyPasscodeError) facultyPasscodeError.style.display = 'none';
-        if (modalFacultyAuth) modalFacultyAuth.style.display = 'flex';
-        setTimeout(() => {
-            if (facultyPasscodeInput) facultyPasscodeInput.focus();
-        }, 100);
-    }
+    let currentLoggedUser = null;
 
-    function closeFacultyAuthModal() {
-        if (modalFacultyAuth) modalFacultyAuth.style.display = 'none';
+    function getStoredSessionUser() {
+        try {
+            const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            return parsed && parsed.user ? parsed.user : null;
+        } catch (e) {
+            return null;
+        }
     }
 
     function switchPortal(portal) {
+        const userRole = currentLoggedUser ? (currentLoggedUser.role || 'student').toLowerCase() : 'student';
+
+        // Enforce strict role separation
+        if (userRole === 'student' && portal !== 'student') {
+            portal = 'student';
+        } else if (userRole === 'faculty' && portal !== 'faculty') {
+            portal = 'faculty';
+        }
+
         if (portal === 'student') {
-            tabStudentPortal.classList.add('active');
-            tabFacultyPortal.classList.remove('active');
-            studentPortalView.style.display = 'block';
-            facultyPortalView.style.display = 'none';
+            if (tabStudentPortal) tabStudentPortal.classList.add('active');
+            if (tabFacultyPortal) tabFacultyPortal.classList.remove('active');
+            if (studentPortalView) studentPortalView.style.display = 'block';
+            if (facultyPortalView) facultyPortalView.style.display = 'none';
         } else {
-            if (isFacultyUnlocked()) {
-                tabFacultyPortal.classList.add('active');
-                tabStudentPortal.classList.remove('active');
-                studentPortalView.style.display = 'none';
-                facultyPortalView.style.display = 'block';
-                loadFacultyRoster();
+            if (tabFacultyPortal) tabFacultyPortal.classList.add('active');
+            if (tabStudentPortal) tabStudentPortal.classList.remove('active');
+            if (studentPortalView) studentPortalView.style.display = 'none';
+            if (facultyPortalView) facultyPortalView.style.display = 'block';
+            loadFacultyRoster();
+        }
+    }
+
+    function applyUserRolePermissions(user) {
+        if (!user || !user.email) {
+            window.location.replace('/login');
+            return;
+        }
+        currentLoggedUser = user;
+        const role = (user.email.toLowerCase() === ADMIN_EMAIL) ? 'admin' : (user.role || 'student').toLowerCase();
+        currentLoggedUser.role = role;
+
+        if (navUserName) navUserName.innerText = user.name || user.email;
+        if (navUserRoleBadge) {
+            navUserRoleBadge.innerText = role.toUpperCase();
+            if (role === 'admin') navUserRoleBadge.style.color = '#7e22ce';
+            else if (role === 'faculty') navUserRoleBadge.style.color = '#4338ca';
+            else navUserRoleBadge.style.color = '#15803d';
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const requestedView = urlParams.get('view');
+
+        if (role === 'student') {
+            // Strict Student View: only Student Portal
+            if (tabStudentPortal) tabStudentPortal.style.display = 'inline-flex';
+            if (tabFacultyPortal) tabFacultyPortal.style.display = 'none';
+            if (btnNavAdminPanel) btnNavAdminPanel.style.display = 'none';
+            switchPortal('student');
+        } else if (role === 'faculty') {
+            // Strict Faculty View: only Faculty Dashboard
+            if (tabStudentPortal) tabStudentPortal.style.display = 'none';
+            if (tabFacultyPortal) tabFacultyPortal.style.display = 'inline-flex';
+            if (btnNavAdminPanel) btnNavAdminPanel.style.display = 'none';
+            if (btnLockFacultySession) btnLockFacultySession.style.display = 'none';
+            switchPortal('faculty');
+        } else if (role === 'admin') {
+            // Admin View: full access to Admin Panel + Student Portal + Faculty Dashboard
+            if (tabStudentPortal) tabStudentPortal.style.display = 'inline-flex';
+            if (tabFacultyPortal) tabFacultyPortal.style.display = 'inline-flex';
+            if (btnNavAdminPanel) btnNavAdminPanel.style.display = 'inline-flex';
+            if (btnLockFacultySession) btnLockFacultySession.style.display = 'none';
+            if (requestedView === 'faculty') {
+                switchPortal('faculty');
             } else {
-                openFacultyAuthModal();
+                switchPortal('student');
             }
         }
     }
 
-    tabStudentPortal.addEventListener('click', () => switchPortal('student'));
-    tabFacultyPortal.addEventListener('click', () => switchPortal('faculty'));
+    if (tabStudentPortal) tabStudentPortal.addEventListener('click', () => switchPortal('student'));
+    if (tabFacultyPortal) tabFacultyPortal.addEventListener('click', () => switchPortal('faculty'));
 
-    if (formFacultyAuth) {
-        formFacultyAuth.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const val = (facultyPasscodeInput ? facultyPasscodeInput.value : '').trim();
-            if (val === FACULTY_PASSCODE) {
-                sessionStorage.setItem('faculty_unlocked', 'true');
-                closeFacultyAuthModal();
-                switchPortal('faculty');
-                showToast('Faculty Authenticated', 'Faculty Dashboard unlocked successfully.');
-            } else {
-                if (facultyPasscodeError) facultyPasscodeError.style.display = 'block';
-                if (facultyPasscodeInput) {
-                    facultyPasscodeInput.focus();
-                    facultyPasscodeInput.select();
-                }
-            }
-        });
-    }
-
-    if (btnCancelFacultyAuth) {
-        btnCancelFacultyAuth.addEventListener('click', () => {
-            closeFacultyAuthModal();
-            switchPortal('student');
-        });
-    }
-
-    if (btnTogglePasscodeVisibility) {
-        btnTogglePasscodeVisibility.addEventListener('click', () => {
-            if (facultyPasscodeInput) {
-                const isPassword = facultyPasscodeInput.type === 'password';
-                facultyPasscodeInput.type = isPassword ? 'text' : 'password';
-                if (iconPasscodeEye) {
-                    iconPasscodeEye.className = isPassword ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
-                }
-            }
+    if (btnNavLogout) {
+        btnNavLogout.addEventListener('click', () => {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            sessionStorage.removeItem('faculty_unlocked');
+            window.location.href = '/login?logout=1';
         });
     }
 
     if (btnLockFacultySession) {
         btnLockFacultySession.addEventListener('click', () => {
-            sessionStorage.removeItem('faculty_unlocked');
-            switchPortal('student');
-            showToast('Session Locked', 'Faculty Dashboard has been locked.');
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            window.location.href = '/login?logout=1';
         });
     }
+
+    // Initialize role permissions from local session and verify live with server
+    (async function initPortalSession() {
+        const storedUser = getStoredSessionUser();
+        if (!storedUser) {
+            window.location.replace('/login');
+            return;
+        }
+        applyUserRolePermissions(storedUser);
+
+        try {
+            const res = await fetch(`/api/auth/status?email=${encodeURIComponent(storedUser.email)}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.status === 'approved' && data.user) {
+                    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+                        user: data.user,
+                        token: data.token || '',
+                        logged_in_at: new Date().toISOString()
+                    }));
+                    applyUserRolePermissions(data.user);
+                } else {
+                    localStorage.removeItem(AUTH_STORAGE_KEY);
+                    window.location.replace('/login');
+                }
+            }
+        } catch (err) {
+            console.warn('Offline session check:', err);
+        }
+    })();
 
     // ------------------------------------------------------------------
     // 2. Classroom Management (MongoDB Synced)

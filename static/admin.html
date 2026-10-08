@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Access Control Panel — Academic Exam & Marksheet Portal</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css?v=4.2">
+    <style>
+        body {
+            margin: 0;
+            background: #f1f5f9;
+            font-family: 'Inter', sans-serif;
+            color: #0f172a;
+        }
+
+        .admin-navbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 14px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+        }
+
+        .admin-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .admin-brand-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #1e40af, #4f46e5);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .admin-brand h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .admin-brand p {
+            margin: 2px 0 0 0;
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .admin-nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .admin-nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 14px;
+            border-radius: 9px;
+            font-size: 0.84rem;
+            font-weight: 600;
+            text-decoration: none;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            color: #334155;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .admin-nav-link:hover {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            color: #1d4ed8;
+        }
+
+        .admin-nav-link.danger {
+            border-color: #fecaca;
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        .admin-nav-link.danger:hover {
+            background: #fee2e2;
+        }
+
+        .admin-container {
+            max-width: 1280px;
+            margin: 26px auto;
+            padding: 0 20px 48px 20px;
+        }
+
+        /* KPI Grid */
+        .admin-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .admin-kpi-card {
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 18px 20px;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+        }
+
+        .kpi-icon-box {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            flex-shrink: 0;
+        }
+
+        .kpi-amber { background: #fef3c7; color: #d97706; }
+        .kpi-indigo { background: #e0e7ff; color: #4338ca; }
+        .kpi-emerald { background: #dcfce7; color: #15803d; }
+        .kpi-blue { background: #dbeafe; color: #1d4ed8; }
+
+        .admin-kpi-card h3 {
+            margin: 0;
+            font-size: 1.65rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .admin-kpi-card span {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        /* Section Cards */
+        .admin-section-card {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+            margin-bottom: 26px;
+            overflow: hidden;
+        }
+
+        .admin-section-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            background: #f8fafc;
+        }
+
+        .admin-section-header h2 {
+            margin: 0;
+            font-size: 1.08rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #0f172a;
+        }
+
+        .admin-section-body {
+            padding: 20px 24px;
+        }
+
+        /* Pending Request Cards */
+        .pending-requests-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .pending-request-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding: 16px 18px;
+            border-radius: 12px;
+            border: 1.5px solid #fde68a;
+            background: #fffbeb;
+        }
+
+        .pending-req-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .pending-req-info strong {
+            font-size: 1rem;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pending-req-meta {
+            font-size: 0.83rem;
+            color: #475569;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+        }
+
+        .pending-req-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .role-select-dropdown {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1.5px solid #cbd5e1;
+            font-size: 0.85rem;
+            font-weight: 700;
+            background: #ffffff;
+            color: #0f172a;
+        }
+
+        .btn-approve {
+            padding: 9px 15px;
+            border-radius: 8px;
+            border: none;
+            background: #16a34a;
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.84rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s;
+        }
+
+        .btn-approve:hover { background: #15803d; }
+
+        .btn-reject {
+            padding: 9px 14px;
+            border-radius: 8px;
+            border: 1px solid #fecaca;
+            background: #fef2f2;
+            color: #dc2626;
+            font-weight: 700;
+            font-size: 0.84rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-reject:hover { background: #fee2e2; }
+
+        /* Filter & Search Bar */
+        .directory-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .filter-pills {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-pill-btn {
+            padding: 7px 14px;
+            border-radius: 999px;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            color: #475569;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .filter-pill-btn.active {
+            background: #2563eb;
+            color: #ffffff;
+            border-color: #2563eb;
+        }
+
+        .search-box-input {
+            padding: 8px 14px;
+            border-radius: 9px;
+            border: 1px solid #cbd5e1;
+            font-size: 0.86rem;
+            min-width: 250px;
+        }
+
+        /* Users Table */
+        .admin-table-wrapper {
+            overflow-x: auto;
+        }
+
+        .admin-users-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.87rem;
+        }
+
+        .admin-users-table th {
+            text-align: left;
+            padding: 12px 14px;
+            background: #f1f5f9;
+            color: #475569;
+            font-weight: 700;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .admin-users-table td {
+            padding: 13px 14px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        .badge-role {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge-role.student { background: #dbeafe; color: #1d4ed8; }
+        .badge-role.faculty { background: #e0e7ff; color: #4338ca; }
+        .badge-role.admin { background: #fae8ff; color: #86198f; }
+
+        .badge-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge-status.approved { background: #dcfce7; color: #15803d; }
+        .badge-status.pending { background: #fef3c7; color: #b45309; }
+        .badge-status.rejected { background: #fee2e2; color: #b91c1c; }
+
+        /* Direct Create User Form */
+        .direct-create-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            align-items: end;
+        }
+
+        .direct-create-grid label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #475569;
+            margin-bottom: 5px;
+        }
+
+        .direct-create-grid input,
+        .direct-create-grid select {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 9px 12px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font-size: 0.86rem;
+        }
+
+        .toast-banner {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #0f172a;
+            color: #fff;
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: none;
+            align-items: center;
+            gap: 10px;
+            z-index: 9999;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Top Admin Navbar -->
+    <header class="admin-navbar">
+        <div class="admin-brand">
+            <div class="admin-brand-icon">
+                <i class="fa-solid fa-user-shield"></i>
+            </div>
+            <div>
+                <h1>Admin Role & Access Control Center</h1>
+                <p>Administrator: <strong id="lblAdminEmail">hp5623699@gmail.com</strong> • Verify & Assign Student / Faculty Roles</p>
+            </div>
+        </div>
+
+        <div class="admin-nav-actions">
+            <a href="/?view=student" class="admin-nav-link">
+                <i class="fa-solid fa-user-graduate"></i> View Student Portal
+            </a>
+            <a href="/?view=faculty" class="admin-nav-link">
+                <i class="fa-solid fa-chalkboard-user"></i> View Faculty Dashboard
+            </a>
+            <button type="button" class="admin-nav-link" id="btnRefreshUsers">
+                <i class="fa-solid fa-rotate"></i> Refresh Requests
+            </button>
+            <button type="button" class="admin-nav-link danger" id="btnAdminLogout">
+                <i class="fa-solid fa-right-from-bracket"></i> Logout
+            </button>
+        </div>
+    </header>
+
+    <main class="admin-container">
+
+        <!-- KPI Summary Cards -->
+        <div class="admin-kpi-grid">
+            <div class="admin-kpi-card">
+                <div class="kpi-icon-box kpi-amber">
+                    <i class="fa-solid fa-bell"></i>
+                </div>
+                <div>
+                    <h3 id="kpiPendingCount">0</h3>
+                    <span>Pending Join Requests</span>
+                </div>
+            </div>
+            <div class="admin-kpi-card">
+                <div class="kpi-icon-box kpi-indigo">
+                    <i class="fa-solid fa-chalkboard-user"></i>
+                </div>
+                <div>
+                    <h3 id="kpiFacultyCount">0</h3>
+                    <span>Approved Faculty</span>
+                </div>
+            </div>
+            <div class="admin-kpi-card">
+                <div class="kpi-icon-box kpi-emerald">
+                    <i class="fa-solid fa-user-graduate"></i>
+                </div>
+                <div>
+                    <h3 id="kpiStudentCount">0</h3>
+                    <span>Approved Students</span>
+                </div>
+            </div>
+            <div class="admin-kpi-card">
+                <div class="kpi-icon-box kpi-blue">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div>
+                    <h3 id="kpiTotalCount">0</h3>
+                    <span>Total Registered Users</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- 1. PENDING JOIN REQUESTS QUEUE -->
+        <!-- =============================================================== -->
+        <div class="admin-section-card">
+            <div class="admin-section-header">
+                <h2>
+                    <i class="fa-solid fa-inbox" style="color: #d97706;"></i>
+                    Pending Role Join Requests
+                    <span id="badgePendingHeader" style="background: #fef3c7; color: #b45309; padding: 3px 10px; border-radius: 999px; font-size: 0.78rem;">0 waiting</span>
+                </h2>
+                <span style="font-size: 0.82rem; color: #64748b;">
+                    Verify new users and assign them <strong>Student</strong> or <strong>Faculty</strong> access
+                </span>
+            </div>
+            <div class="admin-section-body">
+                <div id="pendingRequestsContainer" class="pending-requests-list">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- 2. DIRECTLY ADD & PRE-APPROVE USER -->
+        <!-- =============================================================== -->
+        <div class="admin-section-card">
+            <div class="admin-section-header">
+                <h2>
+                    <i class="fa-solid fa-user-plus" style="color: #2563eb;"></i>
+                    Directly Add & Pre-Approve User
+                </h2>
+                <span style="font-size: 0.82rem; color: #64748b;">
+                    Instantly grant Student or Faculty access to an email address
+                </span>
+            </div>
+            <div class="admin-section-body">
+                <form id="formAdminCreateUser" class="direct-create-grid">
+                    <div>
+                        <label>Full Name *</label>
+                        <input type="text" id="directName" placeholder="e.g., Prof. Sarin Deore" required>
+                    </div>
+                    <div>
+                        <label>Email Address *</label>
+                        <input type="email" id="directEmail" placeholder="user@acpce.ac.in" required>
+                    </div>
+                    <div>
+                        <label>Password *</label>
+                        <input type="text" id="directPassword" placeholder="Initial password" required minlength="4">
+                    </div>
+                    <div>
+                        <label>Assign Role *</label>
+                        <select id="directRole">
+                            <option value="student">Student</option>
+                            <option value="faculty">Faculty</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Department / Roll / ID</label>
+                        <input type="text" id="directDept" placeholder="e.g., IT Dept">
+                    </div>
+                    <div>
+                        <button type="submit" class="btn-approve" style="width: 100%; justify-content: center; padding: 10px;">
+                            <i class="fa-solid fa-check-double"></i> Create & Approve
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- =============================================================== -->
+        <!-- 3. ALL USERS & ROLE DIRECTORY -->
+        <!-- =============================================================== -->
+        <div class="admin-section-card">
+            <div class="admin-section-header">
+                <h2>
+                    <i class="fa-solid fa-users-gear" style="color: #4f46e5;"></i>
+                    All Users & Role Assignment Directory
+                </h2>
+            </div>
+            <div class="admin-section-body">
+                <div class="directory-toolbar">
+                    <div class="filter-pills" id="directoryFilterPills">
+                        <button type="button" class="filter-pill-btn active" data-filter="all">All Users</button>
+                        <button type="button" class="filter-pill-btn" data-filter="pending">Pending</button>
+                        <button type="button" class="filter-pill-btn" data-filter="faculty">Faculty</button>
+                        <button type="button" class="filter-pill-btn" data-filter="student">Students</button>
+                        <button type="button" class="filter-pill-btn" data-filter="rejected">Rejected</button>
+                    </div>
+                    <input type="text" id="searchUsersInput" class="search-box-input"
+                        placeholder="Search by name, email, or department...">
+                </div>
+
+                <div class="admin-table-wrapper">
+                    <table class="admin-users-table">
+                        <thead>
+                            <tr>
+                                <th>User Details</th>
+                                <th>Dept / Roll / ID</th>
+                                <th>Status</th>
+                                <th>Assigned Role</th>
+                                <th>Requested On</th>
+                                <th style="text-align: right;">Admin Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminUsersTableBody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="adminToast" class="toast-banner">
+        <i class="fa-solid fa-circle-check" style="color: #4ade80;"></i>
+        <span id="adminToastText">Action completed</span>
+    </div>
+
+    <script>
+        const AUTH_STORAGE_KEY = 'portal_auth_session_v1';
+        const ADMIN_EMAIL = 'hp5623699@gmail.com';
+
+        let allUsersList = [];
+        let activeFilter = 'all';
+
+        function showAdminToast(msg) {
+            const toast = document.getElementById('adminToast');
+            document.getElementById('adminToastText').innerText = msg;
+            toast.style.display = 'flex';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3500);
+        }
+
+        function getAdminSession() {
+            try {
+                const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.user && parsed.user.email && parsed.user.email.toLowerCase() === ADMIN_EMAIL) {
+                    return parsed.user;
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        // Verify Admin Session on Load
+        const currentAdmin = getAdminSession();
+        if (!currentAdmin) {
+            window.location.href = '/login';
+        } else {
+            document.getElementById('lblAdminEmail').innerText = currentAdmin.email;
+        }
+
+        document.getElementById('btnAdminLogout').addEventListener('click', () => {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            window.location.href = '/login?logout=1';
+        });
+
+        function formatDateStr(isoStr) {
+            if (!isoStr) return '--';
+            try {
+                const d = new Date(isoStr);
+                return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) +
+                    ' ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                return isoStr;
+            }
+        }
+
+        function buildApprovalGmailUrl(user, role) {
+            const subject = encodeURIComponent(`Your Portal Access Request is Approved (${role.toUpperCase()} Role)`);
+            const body = encodeURIComponent(
+`Hello ${user.name || 'User'},
+
+Your request to join the Academic Exam & Marksheet Portal has been verified and APPROVED by the Administrator (${ADMIN_EMAIL}).
+
+• Registered Email: ${user.email}
+• Assigned Role: ${role.toUpperCase()}
+
+You can now sign in at ${window.location.origin}/login using your email and password.
+
+Best regards,
+Portal Administrator (${ADMIN_EMAIL})`
+            );
+            return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(user.email)}&su=${subject}&body=${body}`;
+        }
+
+        async function loadAdminUsers() {
+            try {
+                const res = await fetch(`/api/admin/users?admin_email=${encodeURIComponent(ADMIN_EMAIL)}`);
+                if (!res.ok) {
+                    if (res.status === 403) window.location.href = '/login';
+                    return;
+                }
+                const data = await res.json();
+                allUsersList = data.users || [];
+
+                const sum = data.summary || {};
+                document.getElementById('kpiPendingCount').innerText = sum.pending || 0;
+                document.getElementById('kpiFacultyCount').innerText = sum.approved_faculty || 0;
+                document.getElementById('kpiStudentCount').innerText = sum.approved_students || 0;
+                document.getElementById('kpiTotalCount').innerText = sum.total || 0;
+                document.getElementById('badgePendingHeader').innerText = `${sum.pending || 0} waiting`;
+
+                renderPendingQueue();
+                renderUsersTable();
+            } catch (err) {
+                console.error('Failed to load users:', err);
+            }
+        }
+
+        function renderPendingQueue() {
+            const container = document.getElementById('pendingRequestsContainer');
+            const pendingUsers = allUsersList.filter(u => u.status === 'pending');
+
+            if (pendingUsers.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 24px; color: #64748b; background: #f8fafc; border-radius: 12px; border: 1px dashed #cbd5e1;">
+                        <i class="fa-solid fa-circle-check" style="font-size: 1.5rem; color: #16a34a; margin-bottom: 8px; display: block;"></i>
+                        <strong>All caught up!</strong> There are no pending join requests waiting for approval right now.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            pendingUsers.forEach(u => {
+                const reqRole = (u.requested_role || u.role || 'student').toLowerCase();
+                const item = document.createElement('div');
+                item.className = 'pending-request-item';
+                item.innerHTML = `
+                    <div class="pending-req-info">
+                        <strong>
+                            ${u.name || 'Unnamed User'}
+                            <span class="badge-role ${reqRole}">Requested: ${reqRole.toUpperCase()}</span>
+                        </strong>
+                        <div class="pending-req-meta">
+                            <span><i class="fa-solid fa-envelope"></i> ${u.email}</span>
+                            ${u.department ? `<span><i class="fa-solid fa-building-columns"></i> ${u.department}</span>` : ''}
+                            ${u.roll_or_id ? `<span><i class="fa-solid fa-id-badge"></i> ${u.roll_or_id}</span>` : ''}
+                            <span><i class="fa-regular fa-clock"></i> ${formatDateStr(u.created_at)}</span>
+                        </div>
+                    </div>
+                    <div class="pending-req-actions">
+                        <label style="font-size: 0.78rem; font-weight: 700; color: #475569;">Grant Role:</label>
+                        <select class="role-select-dropdown" id="pendRole_${u.email}">
+                            <option value="student" ${reqRole === 'student' ? 'selected' : ''}>Student Role</option>
+                            <option value="faculty" ${reqRole === 'faculty' ? 'selected' : ''}>Faculty Role</option>
+                        </select>
+                        <button type="button" class="btn-approve" data-approve-email="${u.email}">
+                            <i class="fa-solid fa-check"></i> Approve & Grant Access
+                        </button>
+                        <button type="button" class="btn-reject" data-reject-email="${u.email}">
+                            <i class="fa-solid fa-xmark"></i> Reject
+                        </button>
+                    </div>
+                `;
+
+                const btnApprove = item.querySelector('[data-approve-email]');
+                const btnReject = item.querySelector('[data-reject-email]');
+                const roleSelect = item.querySelector('select');
+
+                btnApprove.addEventListener('click', () => {
+                    updateUserAccess(u.email, 'approve', roleSelect.value);
+                });
+                btnReject.addEventListener('click', () => {
+                    updateUserAccess(u.email, 'reject', roleSelect.value);
+                });
+
+                container.appendChild(item);
+            });
+        }
+
+        function renderUsersTable() {
+            const tbody = document.getElementById('adminUsersTableBody');
+            const query = (document.getElementById('searchUsersInput').value || '').trim().toLowerCase();
+
+            const filtered = allUsersList.filter(u => {
+                if (activeFilter === 'pending' && u.status !== 'pending') return false;
+                if (activeFilter === 'rejected' && u.status !== 'rejected') return false;
+                if (activeFilter === 'faculty' && (u.role !== 'faculty' || u.status !== 'approved')) return false;
+                if (activeFilter === 'student' && (u.role !== 'student' || u.status !== 'approved')) return false;
+
+                if (query) {
+                    const hay = `${u.name || ''} ${u.email || ''} ${u.department || ''} ${u.roll_or_id || ''}`.toLowerCase();
+                    if (!hay.includes(query)) return false;
+                }
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px; color: #64748b;">No matching users found.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = '';
+            filtered.forEach(u => {
+                const isPrimaryAdmin = u.email.toLowerCase() === ADMIN_EMAIL;
+                const role = (u.role || 'student').toLowerCase();
+                const status = (u.status || 'pending').toLowerCase();
+                const gmailApproveLink = buildApprovalGmailUrl(u, role);
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <strong style="display: block; color: #0f172a;">${u.name || '--'}</strong>
+                        <span style="font-size: 0.8rem; color: #64748b;">${u.email}</span>
+                    </td>
+                    <td>
+                        <span style="font-size: 0.83rem; color: #334155;">
+                            ${u.department || '--'} ${u.roll_or_id ? `(${u.roll_or_id})` : ''}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge-status ${status}">${status}</span>
+                    </td>
+                    <td>
+                        ${isPrimaryAdmin
+                            ? `<span class="badge-role admin"><i class="fa-solid fa-crown"></i> Primary Admin</span>`
+                            : `<select class="role-select-dropdown" data-role-change="${u.email}" style="padding: 5px 10px; font-size: 0.8rem;">
+                                <option value="student" ${role === 'student' ? 'selected' : ''}>Student</option>
+                                <option value="faculty" ${role === 'faculty' ? 'selected' : ''}>Faculty</option>
+                               </select>`
+                        }
+                    </td>
+                    <td style="font-size: 0.8rem; color: #64748b;">
+                        ${formatDateStr(u.created_at)}
+                    </td>
+                    <td style="text-align: right;">
+                        ${isPrimaryAdmin ? `<span style="font-size: 0.78rem; color: #94a3b8;">System Protected</span>` : `
+                            <div style="display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+                                ${status !== 'approved' ? `
+                                    <button type="button" class="btn-approve" style="padding: 6px 10px; font-size: 0.78rem;" data-tbl-approve="${u.email}">
+                                        <i class="fa-solid fa-check"></i> Approve
+                                    </button>
+                                ` : `
+                                    <a href="${gmailApproveLink}" target="_blank" class="admin-nav-link" style="padding: 5px 9px; font-size: 0.76rem;" title="Send Approval Email via Gmail">
+                                        <i class="fa-solid fa-envelope"></i> Email
+                                    </a>
+                                `}
+                                ${status !== 'rejected' ? `
+                                    <button type="button" class="btn-reject" style="padding: 6px 10px; font-size: 0.78rem;" data-tbl-reject="${u.email}">
+                                        Revoke
+                                    </button>
+                                ` : ''}
+                                <button type="button" class="admin-nav-link danger" style="padding: 6px 9px; font-size: 0.78rem;" data-tbl-delete="${u.email}" title="Delete User">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        `}
+                    </td>
+                `;
+
+                const roleDropdown = tr.querySelector('[data-role-change]');
+                if (roleDropdown) {
+                    roleDropdown.addEventListener('change', (e) => {
+                        updateUserAccess(u.email, 'change_role', e.target.value);
+                    });
+                }
+
+                const btnTblApprove = tr.querySelector('[data-tbl-approve]');
+                if (btnTblApprove) {
+                    btnTblApprove.addEventListener('click', () => {
+                        const selRole = roleDropdown ? roleDropdown.value : role;
+                        updateUserAccess(u.email, 'approve', selRole);
+                    });
+                }
+
+                const btnTblReject = tr.querySelector('[data-tbl-reject]');
+                if (btnTblReject) {
+                    btnTblReject.addEventListener('click', () => {
+                        updateUserAccess(u.email, 'reject', role);
+                    });
+                }
+
+                const btnTblDelete = tr.querySelector('[data-tbl-delete]');
+                if (btnTblDelete) {
+                    btnTblDelete.addEventListener('click', () => {
+                        if (confirm(`Delete account/request for ${u.email}?`)) {
+                            deleteUser(u.email);
+                        }
+                    });
+                }
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function updateUserAccess(targetEmail, action, assignedRole) {
+            try {
+                const res = await fetch('/api/admin/update-access', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        admin_email: ADMIN_EMAIL,
+                        target_email: targetEmail,
+                        action: action,
+                        assigned_role: assignedRole
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAdminToast(data.message || 'User access updated!');
+                    loadAdminUsers();
+                } else {
+                    alert(data.detail || 'Failed to update access');
+                }
+            } catch (err) {
+                alert('Error updating user access.');
+            }
+        }
+
+        async function deleteUser(targetEmail) {
+            try {
+                const res = await fetch('/api/admin/delete-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        admin_email: ADMIN_EMAIL,
+                        target_email: targetEmail
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAdminToast(data.message || 'User deleted.');
+                    loadAdminUsers();
+                } else {
+                    alert(data.detail || 'Failed to delete user.');
+                }
+            } catch (err) {
+                alert('Error deleting user.');
+            }
+        }
+
+        // Direct User Creation Form
+        document.getElementById('formAdminCreateUser').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('directName').value.trim();
+            const email = document.getElementById('directEmail').value.trim();
+            const password = document.getElementById('directPassword').value;
+            const role = document.getElementById('directRole').value;
+            const department = document.getElementById('directDept').value.trim();
+
+            try {
+                const res = await fetch('/api/admin/create-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        admin_email: ADMIN_EMAIL,
+                        name,
+                        email,
+                        password,
+                        role,
+                        department
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAdminToast(data.message || 'User created and approved!');
+                    document.getElementById('formAdminCreateUser').reset();
+                    loadAdminUsers();
+                } else {
+                    alert(data.detail || 'Could not create user');
+                }
+            } catch (err) {
+                alert('Network error creating user.');
+            }
+        });
+
+        // Filter Pills & Search
+        document.querySelectorAll('#directoryFilterPills .filter-pill-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('#directoryFilterPills .filter-pill-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                activeFilter = btn.getAttribute('data-filter');
+                renderUsersTable();
+            });
+        });
+
+        document.getElementById('searchUsersInput').addEventListener('input', () => {
+            renderUsersTable();
+        });
+
+        document.getElementById('btnRefreshUsers').addEventListener('click', () => {
+            loadAdminUsers();
+            showAdminToast('Refreshed user requests from MongoDB Atlas');
+        });
+
+        // Initial Load
+        loadAdminUsers();
+    </script>
+</body>
+
+</html>

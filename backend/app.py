@@ -72,6 +72,27 @@ def read_root():
             return f.read()
     return "<h1>Academic Marksheet & Grading Portal Running</h1>"
 
+
+@app.api_route("/login", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/login.html", methods=["GET", "HEAD"], response_class=HTMLResponse)
+def read_login_page():
+    login_path = os.path.join(STATIC_DIR, "login.html")
+    if os.path.exists(login_path):
+        with open(login_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return "<h1>Login Page Not Found</h1>"
+
+
+@app.api_route("/admin", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/admin.html", methods=["GET", "HEAD"], response_class=HTMLResponse)
+def read_admin_page():
+    admin_path = os.path.join(STATIC_DIR, "admin.html")
+    if os.path.exists(admin_path):
+        with open(admin_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return "<h1>Admin Page Not Found</h1>"
+
+
 @app.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
     return {"status": "healthy", "service": "marksheet-grading-portal"}
@@ -735,4 +756,169 @@ def export_master_csv_endpoint(classroom_id: str):
     except Exception as e:
         logger.exception("Master CSV export failed")
         raise HTTPException(status_code=500, detail=f"Failed to generate Master CSV: {str(e)}")
+
+
+# ==============================================================================
+# AUTHENTICATION, JOIN REQUESTS & ADMIN ACCESS CONTROL ENDPOINTS
+# ==============================================================================
+
+class JoinRequestPayload(BaseModel):
+    name: str
+    email: str
+    password: str
+    requested_role: str = "student"
+    department: Optional[str] = ""
+    roll_or_id: Optional[str] = ""
+    reason: Optional[str] = ""
+
+
+class LoginPayload(BaseModel):
+    email: str
+    password: str
+
+
+class AdminUpdateAccessPayload(BaseModel):
+    admin_email: str
+    target_email: str
+    action: str  # 'approve' | 'reject' | 'change_role' | 'pending'
+    assigned_role: Optional[str] = None
+
+
+class AdminCreateUserPayload(BaseModel):
+    admin_email: str
+    name: str
+    email: str
+    password: str
+    role: str
+    department: Optional[str] = ""
+    roll_or_id: Optional[str] = ""
+
+
+class AdminDeleteUserPayload(BaseModel):
+    admin_email: str
+    target_email: str
+
+
+@app.post("/api/auth/register")
+def register_join_request_endpoint(req: JoinRequestPayload):
+    """Submits a join request for Student or Faculty role (or initializes Admin)."""
+    try:
+        from backend.services.auth_service import register_join_request
+        res = register_join_request(
+            name=req.name,
+            email=req.email,
+            password=req.password,
+            requested_role=req.requested_role,
+            department=req.department or "",
+            roll_or_id=req.roll_or_id or "",
+            reason=req.reason or ""
+        )
+        return res
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.exception("Join request registration failed")
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+
+
+@app.post("/api/auth/login")
+def login_user_endpoint(req: LoginPayload):
+    """Authenticates a user or Admin with email and password."""
+    try:
+        from backend.services.auth_service import authenticate_user
+        res = authenticate_user(email=req.email, password=req.password)
+        return res
+    except ValueError as ve:
+        raise HTTPException(status_code=401, detail=str(ve))
+    except Exception as e:
+        logger.exception("User login failed")
+        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
+
+
+@app.get("/api/auth/status")
+def check_user_status_endpoint(email: str):
+    """Checks current approval status and role for a user email."""
+    try:
+        from backend.services.auth_service import get_user_status
+        return get_user_status(email=email)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.exception("User status check failed")
+        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
+
+
+@app.get("/api/admin/users")
+def list_admin_users_endpoint(admin_email: str):
+    """Returns all registered users and pending join requests for the Admin Control Panel."""
+    try:
+        from backend.services.auth_service import list_all_users
+        return list_all_users(admin_email=admin_email)
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except Exception as e:
+        logger.exception("Admin list users failed")
+        raise HTTPException(status_code=500, detail=f"Failed to list users: {str(e)}")
+
+
+@app.post("/api/admin/update-access")
+def admin_update_access_endpoint(req: AdminUpdateAccessPayload):
+    """Approves, rejects, or changes role for a user request."""
+    try:
+        from backend.services.auth_service import update_user_access
+        return update_user_access(
+            admin_email=req.admin_email,
+            target_email=req.target_email,
+            action=req.action,
+            assigned_role=req.assigned_role
+        )
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.exception("Admin update access failed")
+        raise HTTPException(status_code=500, detail=f"Failed to update user access: {str(e)}")
+
+
+@app.post("/api/admin/create-user")
+def admin_create_user_endpoint(req: AdminCreateUserPayload):
+    """Directly creates and pre-approves a user account from the Admin Panel."""
+    try:
+        from backend.services.auth_service import admin_create_user
+        return admin_create_user(
+            admin_email=req.admin_email,
+            name=req.name,
+            email=req.email,
+            password=req.password,
+            role=req.role,
+            department=req.department or "",
+            roll_or_id=req.roll_or_id or ""
+        )
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.exception("Admin create user failed")
+        raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
+
+
+@app.post("/api/admin/delete-user")
+def admin_delete_user_endpoint(req: AdminDeleteUserPayload):
+    """Deletes a user request or account."""
+    try:
+        from backend.services.auth_service import delete_user_account
+        return delete_user_account(
+            admin_email=req.admin_email,
+            target_email=req.target_email
+        )
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.exception("Admin delete user failed")
+        raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
+
 

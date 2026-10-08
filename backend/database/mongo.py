@@ -164,6 +164,16 @@ def get_submissions_collection() -> Optional[Collection]:
         return None
 
 
+def get_users_collection() -> Optional[Collection]:
+    """Returns the users and role access requests collection or None if database is unreachable."""
+    db = get_database()
+    if db is None:
+        return None
+    try:
+        return db["users"]
+    except Exception:
+        return None
+
 
 def _init_indexes():
     """Initializes efficient sorting and unique indexes on MongoDB collections."""
@@ -184,6 +194,10 @@ def _init_indexes():
         db["submissions"].create_index([("classroom_id", ASCENDING), ("roll_numeric", ASCENDING)])
         db["submissions"].create_index([("classroom_id", ASCENDING), ("submitted_at", ASCENDING)])
         
+        # Users & role access requests index
+        db["users"].create_index([("email", ASCENDING)], unique=True)
+        
         logger.info("[MongoDB] Database collections and performance indexes initialized.")
     except Exception as e:
         logger.warning(f"[MongoDB] Index creation notice: {e}")
+

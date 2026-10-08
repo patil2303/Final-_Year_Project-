@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login & Role Access Request — Academic Exam & Marksheet Portal</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css?v=4.2">
+    <style>
+        body {
+            min-height: 100vh;
+            background: radial-gradient(circle at top left, #eff6ff 0%, #f8fafc 45%, #eef2ff 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            color: #0f172a;
+        }
+
+        .auth-header {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .auth-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .auth-brand-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #2563eb, #4f46e5);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+        }
+
+        .auth-brand h1 {
+            font-size: 1.2rem;
+            font-weight: 800;
+            margin: 0;
+            color: #0f172a;
+        }
+
+        .auth-brand p {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin: 2px 0 0 0;
+        }
+
+        .admin-badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 14px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #1e40af;
+        }
+
+        .auth-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 16px;
+        }
+
+        .auth-card {
+            width: 100%;
+            max-width: 520px;
+            background: #ffffff;
+            border-radius: 20px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+            overflow: hidden;
+        }
+
+        .auth-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            background: #f1f5f9;
+            padding: 6px;
+            margin: 20px 24px 0 24px;
+            border-radius: 12px;
+        }
+
+        .auth-tab-btn {
+            border: none;
+            background: transparent;
+            padding: 11px 14px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #64748b;
+            border-radius: 9px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .auth-tab-btn.active {
+            background: #ffffff;
+            color: #2563eb;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+        }
+
+        .auth-body {
+            padding: 24px 28px 30px 28px;
+        }
+
+        .auth-title {
+            margin: 0 0 6px 0;
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .auth-subtitle {
+            margin: 0 0 20px 0;
+            font-size: 0.88rem;
+            color: #64748b;
+            line-height: 1.45;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+
+        .input-with-icon {
+            position: relative;
+        }
+
+        .input-with-icon i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 0.95rem;
+        }
+
+        .form-control {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 11px 14px 11px 40px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 0.92rem;
+            font-family: inherit;
+            color: #0f172a;
+            background: #f8fafc;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #2563eb;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+
+        .form-row-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* Role Selector Cards */
+        .role-selector-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .role-option-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px 12px;
+            cursor: pointer;
+            background: #f8fafc;
+            transition: all 0.2s ease;
+            text-align: center;
+            position: relative;
+        }
+
+        .role-option-card:hover {
+            border-color: #93c5fd;
+            background: #f0f9ff;
+        }
+
+        .role-option-card.selected {
+            border-color: #2563eb;
+            background: #eff6ff;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+        }
+
+        .role-option-card i {
+            font-size: 1.45rem;
+            color: #2563eb;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .role-option-card strong {
+            display: block;
+            font-size: 0.92rem;
+            color: #0f172a;
+            margin-bottom: 3px;
+        }
+
+        .role-option-card span {
+            font-size: 0.75rem;
+            color: #64748b;
+            line-height: 1.3;
+            display: block;
+        }
+
+        .btn-auth-submit {
+            width: 100%;
+            padding: 13px 18px;
+            border: none;
+            border-radius: 11px;
+            background: linear-gradient(135deg, #2563eb, #4f46e5);
+            color: #ffffff;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            box-shadow: 0 6px 18px rgba(37, 99, 235, 0.25);
+            transition: all 0.2s;
+            margin-top: 8px;
+        }
+
+        .btn-auth-submit:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 22px rgba(37, 99, 235, 0.33);
+        }
+
+        .btn-auth-submit:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .auth-alert {
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+            display: none;
+            align-items: flex-start;
+            gap: 10px;
+            line-height: 1.45;
+        }
+
+        .auth-alert.error {
+            display: flex;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #b91c1c;
+        }
+
+        .auth-alert.success {
+            display: flex;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #15803d;
+        }
+
+        .auth-alert.warning {
+            display: flex;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            color: #b45309;
+        }
+
+        /* Pending Approval Status View */
+        .pending-status-box {
+            text-align: center;
+            padding: 12px 4px;
+        }
+
+        .pending-icon-circle {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: #fef3c7;
+            color: #d97706;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            margin: 0 auto 14px auto;
+            border: 2px solid #fde68a;
+        }
+
+        .pending-details-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px 16px;
+            text-align: left;
+            margin: 16px 0;
+            font-size: 0.85rem;
+        }
+
+        .pending-details-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+
+        .pending-details-row:last-child {
+            border-bottom: none;
+        }
+
+        .btn-mailto-admin {
+            width: 100%;
+            padding: 11px 16px;
+            border-radius: 10px;
+            border: 1.5px solid #2563eb;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-weight: 700;
+            font-size: 0.88rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-decoration: none;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+
+        .btn-mailto-admin:hover {
+            background: #dbeafe;
+        }
+
+        .admin-info-note {
+            margin-top: 18px;
+            padding: 12px 14px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.79rem;
+            color: #475569;
+            line-height: 1.45;
+        }
+
+        .auth-footer {
+            text-align: center;
+            padding: 16px;
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        @media (max-width: 520px) {
+            .form-row-2 {
+                grid-template-columns: 1fr;
+            }
+            .auth-body {
+                padding: 20px 18px 24px 18px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Top Header -->
+    <header class="auth-header">
+        <div class="auth-brand">
+            <div class="auth-brand-icon">
+                <i class="fa-solid fa-graduation-cap"></i>
+            </div>
+            <div>
+                <h1>Academic Exam & Marksheet Portal</h1>
+                <p>Role-Based Access Control • Student & Faculty Verification</p>
+            </div>
+        </div>
+        <div class="admin-badge-pill">
+            <i class="fa-solid fa-user-shield"></i>
+            <span>Admin Verification: <strong>hp5623699@gmail.com</strong></span>
+        </div>
+    </header>
+
+    <!-- Main Auth Container -->
+    <main class="auth-wrapper">
+        <div class="auth-card">
+
+            <!-- Mode Switcher Tabs -->
+            <div class="auth-tabs" id="authTabsBar">
+                <button type="button" class="auth-tab-btn active" id="tabBtnSignIn">
+                    <i class="fa-solid fa-right-to-bracket"></i> Sign In
+                </button>
+                <button type="button" class="auth-tab-btn" id="tabBtnJoinRequest">
+                    <i class="fa-solid fa-user-plus"></i> Request Role Access
+                </button>
+            </div>
+
+            <div class="auth-body">
+                <!-- Alert Banner -->
+                <div id="authAlertBox" class="auth-alert">
+                    <i class="fa-solid fa-circle-info" id="authAlertIcon" style="margin-top: 2px;"></i>
+                    <div id="authAlertText"></div>
+                </div>
+
+                <!-- ========================================================= -->
+                <!-- 1. SIGN IN FORM (Approved Users & Admin) -->
+                <!-- ========================================================= -->
+                <div id="viewSignIn">
+                    <h2 class="auth-title">Welcome Back</h2>
+                    <p class="auth-subtitle">Sign in with your approved email address to access your assigned portal.</p>
+
+                    <form id="formSignIn">
+                        <div class="form-group">
+                            <label for="loginEmail">Email Address</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-envelope"></i>
+                                <input type="email" id="loginEmail" class="form-control"
+                                    placeholder="e.g., student@acpce.ac.in or hp5623699@gmail.com" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="loginPassword">Password</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-lock"></i>
+                                <input type="password" id="loginPassword" class="form-control"
+                                    placeholder="Enter your password" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-auth-submit" id="btnSignInSubmit">
+                            <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In to Portal
+                        </button>
+                    </form>
+
+                    <div class="admin-info-note">
+                        <i class="fa-solid fa-shield-halved" style="color: #2563eb; margin-right: 4px;"></i>
+                        <strong>First time visiting?</strong> Switch to the <strong>Request Role Access</strong> tab above to send a join request to the Administrator (<code>hp5623699@gmail.com</code>) for Student or Faculty access.
+                    </div>
+                </div>
+
+                <!-- ========================================================= -->
+                <!-- 2. NEW USER JOIN REQUEST FORM -->
+                <!-- ========================================================= -->
+                <div id="viewJoinRequest" style="display: none;">
+                    <h2 class="auth-title">Request Portal Access</h2>
+                    <p class="auth-subtitle">New users must send a role request to the Administrator (<strong>hp5623699@gmail.com</strong>) for verification.</p>
+
+                    <form id="formJoinRequest">
+                        <div class="form-group">
+                            <label>Select Requested Role</label>
+                            <div class="role-selector-grid">
+                                <div class="role-option-card selected" data-role="student" id="cardRoleStudent">
+                                    <i class="fa-solid fa-user-graduate"></i>
+                                    <strong>Student</strong>
+                                    <span>Upload marksheets & submit to class roster</span>
+                                </div>
+                                <div class="role-option-card" data-role="faculty" id="cardRoleFaculty">
+                                    <i class="fa-solid fa-chalkboard-user"></i>
+                                    <strong>Faculty</strong>
+                                    <span>Manage classrooms, batch verify & export grades</span>
+                                </div>
+                            </div>
+                            <input type="hidden" id="reqSelectedRole" value="student">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="reqFullName">Full Name *</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-user"></i>
+                                <input type="text" id="reqFullName" class="form-control"
+                                    placeholder="Enter your full name" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="reqEmail">Your Email Address *</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-envelope"></i>
+                                <input type="email" id="reqEmail" class="form-control"
+                                    placeholder="yourname@gmail.com or @acpce.ac.in" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row-2">
+                            <div class="form-group">
+                                <label for="reqDepartment">Department / Branch</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-building-columns"></i>
+                                    <input type="text" id="reqDepartment" class="form-control"
+                                        placeholder="e.g., IT / COMP">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="reqRollOrId" id="lblReqRollOrId">Roll No / PRN</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-id-card"></i>
+                                    <input type="text" id="reqRollOrId" class="form-control"
+                                        placeholder="e.g., Roll 44">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="reqPassword">Create Password *</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-key"></i>
+                                <input type="password" id="reqPassword" class="form-control"
+                                    placeholder="Create a password (min 4 chars)" minlength="4" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-auth-submit" id="btnJoinSubmit">
+                            <i class="fa-solid fa-paper-plane"></i> Send Join Request to Admin
+                        </button>
+                    </form>
+                </div>
+
+                <!-- ========================================================= -->
+                <!-- 3. PENDING APPROVAL / REQUEST SENT CONFIRMATION VIEW -->
+                <!-- ========================================================= -->
+                <div id="viewPendingApproval" style="display: none;">
+                    <div class="pending-status-box">
+                        <div class="pending-icon-circle" id="pendingStatusIcon">
+                            <i class="fa-solid fa-hourglass-half"></i>
+                        </div>
+                        <h2 class="auth-title" id="pendingStatusTitle">Join Request Sent to Admin!</h2>
+                        <p class="auth-subtitle" id="pendingStatusSubtitle">
+                            Your request has been logged and sent to the Administrator (<strong>hp5623699@gmail.com</strong>). Once verified and accepted, you will have full access.
+                        </p>
+
+                        <div class="pending-details-card">
+                            <div class="pending-details-row">
+                                <span style="color: #64748b;">Applicant Name:</span>
+                                <strong id="pendUserName">--</strong>
+                            </div>
+                            <div class="pending-details-row">
+                                <span style="color: #64748b;">Applicant Email:</span>
+                                <strong id="pendUserEmail">--</strong>
+                            </div>
+                            <div class="pending-details-row">
+                                <span style="color: #64748b;">Requested Role:</span>
+                                <strong id="pendUserRole" style="color: #2563eb; text-transform: uppercase;">--</strong>
+                            </div>
+                            <div class="pending-details-row">
+                                <span style="color: #64748b;">Admin Verifier:</span>
+                                <strong>hp5623699@gmail.com</strong>
+                            </div>
+                            <div class="pending-details-row">
+                                <span style="color: #64748b;">Current Status:</span>
+                                <span id="pendStatusBadge" style="background: #fef3c7; color: #b45309; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.78rem;">
+                                    PENDING ADMIN APPROVAL
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Direct Email Trigger to hp5623699@gmail.com -->
+                        <a href="#" id="btnSendDirectEmail" target="_blank" class="btn-mailto-admin">
+                            <i class="fa-solid fa-envelope-open-text"></i> Send Join Request Email via Gmail to hp5623699@gmail.com
+                        </a>
+
+                        <button type="button" class="btn-auth-submit" id="btnCheckApprovalNow" style="margin-bottom: 10px;">
+                            <i class="fa-solid fa-rotate"></i> Check Approval Status Now
+                        </button>
+
+                        <button type="button" id="btnBackToSignIn"
+                            style="background: transparent; border: none; color: #64748b; font-size: 0.85rem; font-weight: 600; cursor: pointer; padding: 6px;">
+                            <i class="fa-solid fa-arrow-left"></i> Back to Sign In
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <footer class="auth-footer">
+        Academic Exam Marksheet & Grading Portal • Admin Managed Access Control (hp5623699@gmail.com)
+    </footer>
+
+    <script>
+        const AUTH_STORAGE_KEY = 'portal_auth_session_v1';
+        const ADMIN_EMAIL = 'hp5623699@gmail.com';
+
+        const tabBtnSignIn = document.getElementById('tabBtnSignIn');
+        const tabBtnJoinRequest = document.getElementById('tabBtnJoinRequest');
+        const authTabsBar = document.getElementById('authTabsBar');
+
+        const viewSignIn = document.getElementById('viewSignIn');
+        const viewJoinRequest = document.getElementById('viewJoinRequest');
+        const viewPendingApproval = document.getElementById('viewPendingApproval');
+
+        const authAlertBox = document.getElementById('authAlertBox');
+        const authAlertText = document.getElementById('authAlertText');
+        const authAlertIcon = document.getElementById('authAlertIcon');
+
+        const cardRoleStudent = document.getElementById('cardRoleStudent');
+        const cardRoleFaculty = document.getElementById('cardRoleFaculty');
+        const reqSelectedRole = document.getElementById('reqSelectedRole');
+        const lblReqRollOrId = document.getElementById('lblReqRollOrId');
+        const reqRollOrId = document.getElementById('reqRollOrId');
+
+        let currentPendingUser = null;
+
+        function showAlert(type, message) {
+            authAlertBox.className = 'auth-alert ' + type;
+            authAlertText.innerHTML = message;
+            if (type === 'error') authAlertIcon.className = 'fa-solid fa-circle-exclamation';
+            else if (type === 'success') authAlertIcon.className = 'fa-solid fa-circle-check';
+            else authAlertIcon.className = 'fa-solid fa-triangle-exclamation';
+        }
+
+        function hideAlert() {
+            authAlertBox.className = 'auth-alert';
+            authAlertText.innerHTML = '';
+        }
+
+        function switchTab(mode) {
+            hideAlert();
+            authTabsBar.style.display = 'grid';
+            viewPendingApproval.style.display = 'none';
+            if (mode === 'signin') {
+                tabBtnSignIn.classList.add('active');
+                tabBtnJoinRequest.classList.remove('active');
+                viewSignIn.style.display = 'block';
+                viewJoinRequest.style.display = 'none';
+            } else {
+                tabBtnJoinRequest.classList.add('active');
+                tabBtnSignIn.classList.remove('active');
+                viewJoinRequest.style.display = 'block';
+                viewSignIn.style.display = 'none';
+            }
+        }
+
+        tabBtnSignIn.addEventListener('click', () => switchTab('signin'));
+        tabBtnJoinRequest.addEventListener('click', () => switchTab('join'));
+
+        // Role card selection
+        function selectRoleCard(role) {
+            reqSelectedRole.value = role;
+            if (role === 'student') {
+                cardRoleStudent.classList.add('selected');
+                cardRoleFaculty.classList.remove('selected');
+                lblReqRollOrId.innerText = 'Roll No / PRN';
+                reqRollOrId.placeholder = 'e.g., Roll 44';
+            } else {
+                cardRoleFaculty.classList.add('selected');
+                cardRoleStudent.classList.remove('selected');
+                lblReqRollOrId.innerText = 'Faculty ID / Designation';
+                reqRollOrId.placeholder = 'e.g., Prof. / FAC-102';
+            }
+        }
+
+        cardRoleStudent.addEventListener('click', () => selectRoleCard('student'));
+        cardRoleFaculty.addEventListener('click', () => selectRoleCard('faculty'));
+
+        // Redirect helper based on approved user role
+        function redirectByUserRole(user, token) {
+            const sessionData = {
+                user: user,
+                token: token || '',
+                logged_in_at: new Date().toISOString()
+            };
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(sessionData));
+
+            const role = (user.role || 'student').toLowerCase();
+            if (role === 'admin' || (user.email && user.email.toLowerCase() === ADMIN_EMAIL)) {
+                window.location.href = '/admin';
+            } else if (role === 'faculty') {
+                window.location.href = '/?view=faculty';
+            } else {
+                window.location.href = '/?view=student';
+            }
+        }
+
+        // Show Pending Verification Screen
+        function showPendingScreen(user) {
+            currentPendingUser = user;
+            hideAlert();
+            authTabsBar.style.display = 'none';
+            viewSignIn.style.display = 'none';
+            viewJoinRequest.style.display = 'none';
+            viewPendingApproval.style.display = 'block';
+
+            const name = user.name || 'Applicant';
+            const email = user.email || '';
+            const role = (user.requested_role || user.role || 'student').toUpperCase();
+            const dept = user.department || 'Not specified';
+            const rollId = user.roll_or_id || 'Not specified';
+
+            document.getElementById('pendUserName').innerText = name;
+            document.getElementById('pendUserEmail').innerText = email;
+            document.getElementById('pendUserRole').innerText = role;
+
+            // Build Gmail compose URL so the user can also directly email hp5623699@gmail.com
+            const subject = encodeURIComponent(`[Portal Join Request] ${name} requesting ${role} Role`);
+            const body = encodeURIComponent(
+`Hello Portal Admin (${ADMIN_EMAIL}),
+
+I have submitted a join request on the Academic Exam & Marksheet Portal. Please verify and approve my account:
+
+• Full Name: ${name}
+• Email Address: ${email}
+• Requested Role: ${role}
+• Department / Branch: ${dept}
+• Roll No / ID: ${rollId}
+
+You can approve my request from the Admin Control Panel (/admin).
+
+Thank you,
+${name}`
+            );
+            const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${ADMIN_EMAIL}&su=${subject}&body=${body}`;
+            const btnSendDirectEmail = document.getElementById('btnSendDirectEmail');
+            btnSendDirectEmail.href = gmailUrl;
+        }
+
+        document.getElementById('btnBackToSignIn').addEventListener('click', () => {
+            switchTab('signin');
+        });
+
+        // Handle Sign In Submit
+        document.getElementById('formSignIn').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideAlert();
+
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const btn = document.getElementById('btnSignInSubmit');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying Credentials...';
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    showAlert('error', data.detail || 'Sign in failed. Please check your credentials.');
+                } else if (data.status === 'pending') {
+                    showPendingScreen(data.user);
+                } else if (data.status === 'rejected') {
+                    showAlert('error', data.message || `Your join request was declined by the Administrator (${ADMIN_EMAIL}).`);
+                } else if (data.status === 'approved') {
+                    showAlert('success', 'Login successful! Redirecting to your portal...');
+                    setTimeout(() => {
+                        redirectByUserRole(data.user, data.token);
+                    }, 400);
+                }
+            } catch (err) {
+                showAlert('error', 'Network error while connecting to server. Please try again.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In to Portal';
+            }
+        });
+
+        // Handle Join Request Submit
+        document.getElementById('formJoinRequest').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideAlert();
+
+            const name = document.getElementById('reqFullName').value.trim();
+            const email = document.getElementById('reqEmail').value.trim();
+            const password = document.getElementById('reqPassword').value;
+            const requested_role = document.getElementById('reqSelectedRole').value;
+            const department = document.getElementById('reqDepartment').value.trim();
+            const roll_or_id = document.getElementById('reqRollOrId').value.trim();
+
+            const btn = document.getElementById('btnJoinSubmit');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending Request to Admin...';
+
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        email,
+                        password,
+                        requested_role,
+                        department,
+                        roll_or_id
+                    })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    showAlert('error', data.detail || 'Could not submit join request.');
+                } else if (data.status === 'approved') {
+                    // Admin email auto-approved
+                    showAlert('success', 'Admin account verified! Redirecting to Admin Control Panel...');
+                    setTimeout(() => {
+                        redirectByUserRole(data.user, data.token);
+                    }, 500);
+                } else {
+                    showPendingScreen(data.user);
+                }
+            } catch (err) {
+                showAlert('error', 'Failed to send join request. Please check your connection.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Join Request to Admin';
+            }
+        });
+
+        // Check Live Approval Status Button
+        document.getElementById('btnCheckApprovalNow').addEventListener('click', async () => {
+            if (!currentPendingUser || !currentPendingUser.email) return;
+            const btn = document.getElementById('btnCheckApprovalNow');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking with Admin Server...';
+
+            try {
+                const res = await fetch(`/api/auth/status?email=${encodeURIComponent(currentPendingUser.email)}`);
+                const data = await res.json();
+
+                if (data.status === 'approved' && data.user) {
+                    showAlert('success', `Great news! Admin (${ADMIN_EMAIL}) approved your ${data.user.role.toUpperCase()} access! Redirecting...`);
+                    setTimeout(() => {
+                        redirectByUserRole(data.user, data.token);
+                    }, 700);
+                } else if (data.status === 'rejected') {
+                    showAlert('error', `Your request was declined by Admin (${ADMIN_EMAIL}).`);
+                } else {
+                    showAlert('warning', `Still awaiting verification from Admin (${ADMIN_EMAIL}). Please check back shortly or send an email notification below.`);
+                }
+            } catch (err) {
+                showAlert('error', 'Could not check status right now.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Check Approval Status Now';
+            }
+        });
+
+        // On initial load, check if already logged in and valid
+        (async function checkExistingSession() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('logout') === '1') {
+                localStorage.removeItem(AUTH_STORAGE_KEY);
+                return;
+            }
+            const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+            if (!raw) return;
+            try {
+                const session = JSON.parse(raw);
+                if (session && session.user && session.user.email) {
+                    const res = await fetch(`/api/auth/status?email=${encodeURIComponent(session.user.email)}`);
+                    const data = await res.json();
+                    if (data.status === 'approved' && data.user) {
+                        redirectByUserRole(data.user, data.token);
+                    } else {
+                        localStorage.removeItem(AUTH_STORAGE_KEY);
+                    }
+                }
+            } catch (e) {
+                localStorage.removeItem(AUTH_STORAGE_KEY);
+            }
+        })();
+    </script>
+</body>
+
+</html>
