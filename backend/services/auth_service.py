@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Primary Admin Credentials
 ADMIN_EMAIL = "hp5623699@gmail.com"
 DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_DEFAULT_PASSWORD", "Admin@123")
+DEFAULT_SMTP_PASSWORD = "jovbkksmzewbmgdp"
 SECRET_SALT = os.environ.get("AUTH_SECRET_SALT", "academic_marksheet_portal_salt_2026")
 PORTAL_PUBLIC_URL = os.environ.get("LIVE_API_URL", "https://final-year-project-rho-sable.vercel.app")
 
@@ -80,10 +81,10 @@ def get_smtp_config() -> Dict[str, Any]:
     Retrieves SMTP credentials from:
     1. MongoDB Atlas ('system_settings' collection)
     2. Local .env / environment variables (SMTP_EMAIL, SMTP_PASSWORD)
-    3. Local JSON cache fallback
+    3. Built-in default App Password for hp5623699@gmail.com
     """
     smtp_email = _read_env_file_var("SMTP_EMAIL") or ADMIN_EMAIL
-    smtp_password = _read_env_file_var("SMTP_PASSWORD")
+    smtp_password = _read_env_file_var("SMTP_PASSWORD") or DEFAULT_SMTP_PASSWORD
     smtp_host = _read_env_file_var("SMTP_HOST") or "smtp.gmail.com"
     smtp_port = int(_read_env_file_var("SMTP_PORT") or "587")
 
