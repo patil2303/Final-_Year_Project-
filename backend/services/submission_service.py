@@ -4,6 +4,7 @@ import json
 import datetime
 import logging
 import urllib.request
+import urllib.parse
 from typing import Dict, Any, List, Optional
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -18,6 +19,7 @@ from backend.database.mongo import (
 
 logger = logging.getLogger(__name__)
 
+ADMIN_EMAIL = "hp5623699@gmail.com"
 STANDARD_QUESTION_HEADERS = ["1a", "1b", "1c", "1d", "1e", "1f", "2a", "2b", "3a", "3b"]
 
 
@@ -170,11 +172,14 @@ def create_or_get_classroom(
     semester: str,
     subject: str,
     exam_name: str = "IA-1",
-    max_marks_config: Optional[Dict[str, Any]] = None
+    max_marks_config: Optional[Dict[str, Any]] = None,
+    created_by: Optional[str] = None,
+    creator_name: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Registers a new classroom/exam batch or retrieves an existing one.
-    Guaranteed to succeed across Local, Serverless, and In-Memory modes.
+    Stores the creator's email and name to ensure each faculty member has access
+    strictly to their own created classes.
     """
     clean_yr = re.sub(r'[^A-Za-z0-9]', '', year).upper() or "SE"
     clean_br = re.sub(r'[^A-Za-z0-9]', '', branch).upper() or "IT"
@@ -183,15 +188,30 @@ def create_or_get_classroom(
     clean_subj = re.sub(r'[^A-Za-z0-9]', '', subject).upper() or "CNND"
     clean_exam = re.sub(r'[^A-Za-z0-9]', '', exam_name).upper() or "IA1"
     
-    classroom_id = f"{clean_yr}_{clean_br}_{clean_div}_{clean_sem}_{clean_subj}_{clean_exam}"
-    
+    clean_creator = (created_by or "").strip().lower()
+    clean_creator_name = (creator_name or "").strip()
+
+    base_classroom_id = f"{clean_yr}_{clean_br}_{clean_div}_{clean_sem}_{clean_subj}_{clean_exam}"
+    classroom_id = base_classroom_id
+
+    col = get_classrooms_collection()
+    if col is not None and clean_creator:
+        try:
+            existing = col.find_one({"classroom_id": classroom_id})
+            if existing and existing.get("created_by") and existing.get("created_by").lower() != clean_creator:
+                # Differentiate if another teacher created the exact same batch code
+                prefix = clean_creator.split("@")[0].replace(".", "_")
+                classroom_id = f"{base_classroom_id}_{prefix}"
+        except Exception as e:
+            logger.warning(f"[Classroom] Check existing notice: {e}")
+
     default_max_marks = {
         "1a": "2", "1b": "2", "1c": "2", "1d": "2", "1e": "2", "1f": "2",
         "2a": "5", "2b": "5", "3a": "5", "3b": "5", "total": "20"
     }
     
     now = datetime.datetime.now(datetime.timezone.utc)
-    set_fields = {
+    set_fields: Dict[str, Any] = {
         "classroom_id": classroom_id,
         "year": year.strip().upper(),
         "branch": branch.strip().upper(),
@@ -202,23 +222,33 @@ def create_or_get_classroom(
         "max_marks_config": max_marks_config or default_max_marks,
         "updated_at": now
     }
-    doc = {**set_fields, "created_at": now, "is_submission_open": True}
+    if clean_creator:
+        set_fields["created_by"] = clean_creator
+    if clean_creator_name:
+        set_fields["creator_name"] = clean_creator_name
+
+    set_on_insert: Dict[str, Any] = {
+        "created_at": now,
+        "is_submission_open": True
+    }
+
+    doc = {
+        **set_fields,
+        "created_at": now,
+        "is_submission_open": True
+    }
     
     _INMEMORY_CLASSROOMS[classroom_id] = doc
     
     # Try updating MongoDB if client available
     mongo_err = None
     try:
-        col = get_classrooms_collection()
         if col is not None:
             col.update_one(
                 {"classroom_id": classroom_id},
                 {
                     "$set": set_fields,
-                    "$setOnInsert": {
-                        "created_at": now,
-                        "is_submission_open": True
-                    }
+                    "$setOnInsert": set_on_insert
                 },
                 upsert=True
             )
@@ -229,8 +259,6 @@ def create_or_get_classroom(
                 cls["_stored_in_mongo"] = True
                 _INMEMORY_CLASSROOMS[classroom_id] = cls
                 return cls
-        else:
-            mongo_err = f"col is None (db={get_database()})"
     except Exception as e:
         mongo_err = f"{type(e).__name__}: {str(e)}"
         logger.error(f"[MongoDB] Could not persist classroom to MongoDB ({e}), saved to memory.")
@@ -247,7 +275,9 @@ def create_or_get_classroom(
                 "semester": semester,
                 "subject": subject,
                 "exam_name": exam_name or "IA-1",
-                "max_marks_config": max_marks_config
+                "max_marks_config": max_marks_config,
+                "created_by": clean_creator,
+                "creator_name": clean_creator_name
             }
             res = _proxy_post("/api/classrooms", payload)
             if res and isinstance(res, dict) and res.get("classroom"):
@@ -258,14 +288,27 @@ def create_or_get_classroom(
     return _INMEMORY_CLASSROOMS[classroom_id]
 
 
-def toggle_classroom_submission_status(classroom_id: str, is_open: bool) -> bool:
-    """Updates the submission open/closed toggle state for a classroom."""
+def toggle_classroom_submission_status(classroom_id: str, is_open: bool, faculty_email: Optional[str] = None) -> bool:
+    """Updates the submission open/closed toggle state for a classroom with creator authorization."""
+    clean_faculty = (faculty_email or "").strip().lower()
+    is_admin = (clean_faculty == ADMIN_EMAIL.lower())
+
+    col = get_classrooms_collection()
+    if col is not None and clean_faculty and not is_admin:
+        try:
+            cls_doc = col.find_one({"classroom_id": classroom_id})
+            if cls_doc and cls_doc.get("created_by") and cls_doc.get("created_by").lower() != clean_faculty:
+                raise PermissionError("Unauthorized: You can only modify submission settings for classes created by you.")
+        except PermissionError:
+            raise
+        except Exception as e:
+            logger.warning(f"[Auth] toggle_classroom_submission_status notice: {e}")
+
     if classroom_id in _INMEMORY_CLASSROOMS:
         _INMEMORY_CLASSROOMS[classroom_id]["is_submission_open"] = bool(is_open)
 
     updated = False
     try:
-        col = get_classrooms_collection()
         if col is not None:
             res = col.update_one(
                 {"classroom_id": classroom_id},
@@ -277,7 +320,7 @@ def toggle_classroom_submission_status(classroom_id: str, is_open: bool) -> bool
 
     if is_live_proxy_active():
         try:
-            payload = {"classroom_id": classroom_id, "is_submission_open": bool(is_open)}
+            payload = {"classroom_id": classroom_id, "is_submission_open": bool(is_open), "faculty_email": clean_faculty}
             res = _proxy_post("/api/classrooms/toggle-submission", payload)
             if res and isinstance(res, dict) and res.get("status") == "success":
                 updated = True
@@ -287,13 +330,23 @@ def toggle_classroom_submission_status(classroom_id: str, is_open: bool) -> bool
     return updated or (classroom_id in _INMEMORY_CLASSROOMS)
 
 
-def list_classrooms() -> List[Dict[str, Any]]:
-    """Returns all registered classrooms strictly fetched from MongoDB Atlas."""
+def list_classrooms(faculty_email: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Returns registered classrooms strictly fetched from MongoDB Atlas.
+    If faculty_email is provided (and not admin), strictly filters to classrooms created by that faculty.
+    """
+    clean_faculty = (faculty_email or "").strip().lower()
+    is_admin = (clean_faculty == ADMIN_EMAIL.lower())
+
+    query: Dict[str, Any] = {}
+    if clean_faculty and not is_admin:
+        query = {"created_by": clean_faculty}
+
     # 1. Direct MongoDB Atlas query
     try:
         col = get_classrooms_collection()
         if col is not None:
-            cursor = col.find({}, {"_id": 0}).sort("created_at", -1)
+            cursor = col.find(query, {"_id": 0}).sort("created_at", -1)
             classrooms = list(cursor)
             for c in classrooms:
                 if "is_submission_open" not in c:
@@ -305,14 +358,20 @@ def list_classrooms() -> List[Dict[str, Any]]:
     # 2. Live proxy query (used on local when direct MongoDB connection is blocked)
     if is_live_proxy_active():
         try:
-            res = _proxy_get("/api/classrooms")
+            endpoint = "/api/classrooms"
+            if clean_faculty and not is_admin:
+                endpoint = f"/api/classrooms?faculty_email={urllib.parse.quote(clean_faculty)}"
+            res = _proxy_get(endpoint)
             if res and isinstance(res, dict) and "classrooms" in res:
                 return res.get("classrooms", [])
         except Exception as e:
             logger.warning(f"[Proxy] Failed to proxy list_classrooms: {e}")
 
     # 3. If user created classrooms during this session, return them
-    return list(_INMEMORY_CLASSROOMS.values())
+    all_mem = list(_INMEMORY_CLASSROOMS.values())
+    if clean_faculty and not is_admin:
+        return [c for c in all_mem if (c.get("created_by") or "").lower() == clean_faculty]
+    return all_mem
 
 
 
@@ -429,11 +488,28 @@ def save_or_update_submission(
     return submission_doc
 
 
-def get_classroom_submissions(classroom_id: str) -> List[Dict[str, Any]]:
+def get_classroom_submissions(classroom_id: str, faculty_email: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Retrieves all student submissions for a classroom, strictly sorted
     by natural numeric Roll Number from MongoDB Atlas.
+    Verifies that requesting faculty created the classroom.
     """
+    clean_faculty = (faculty_email or "").strip().lower()
+    is_admin = (clean_faculty == ADMIN_EMAIL.lower())
+
+    # Authorization check if faculty_email is provided
+    if clean_faculty and not is_admin:
+        try:
+            col_cls = get_classrooms_collection()
+            if col_cls is not None:
+                cls_doc = col_cls.find_one({"classroom_id": classroom_id})
+                if cls_doc and cls_doc.get("created_by") and cls_doc.get("created_by").lower() != clean_faculty:
+                    raise PermissionError("Unauthorized: You do not have permission to view submissions for another faculty's class.")
+        except PermissionError:
+            raise
+        except Exception as e:
+            logger.warning(f"[Auth Check] get_classroom_submissions notice: {e}")
+
     # 1. Direct MongoDB Atlas query
     try:
         col = get_submissions_collection()
@@ -453,7 +529,10 @@ def get_classroom_submissions(classroom_id: str) -> List[Dict[str, Any]]:
     # 2. Live proxy query
     if is_live_proxy_active():
         try:
-            res = _proxy_get(f"/api/submissions/{classroom_id}")
+            endpoint = f"/api/submissions/{classroom_id}"
+            if clean_faculty and not is_admin:
+                endpoint = f"/api/submissions/{classroom_id}?faculty_email={urllib.parse.quote(clean_faculty)}"
+            res = _proxy_get(endpoint)
             if res and isinstance(res, dict) and "submissions" in res:
                 return res.get("submissions", [])
         except Exception as e:
@@ -476,7 +555,7 @@ def get_classroom_submissions(classroom_id: str) -> List[Dict[str, Any]]:
 # MASTER EXCEL & CSV GRADE SHEET COMPILER (MULTI-STUDENT CONSOLIDATION)
 # ==============================================================================
 
-def generate_master_excel_bytes(classroom_id: str) -> bytes:
+def generate_master_excel_bytes(classroom_id: str, faculty_email: Optional[str] = None) -> bytes:
     """
     Compiles an openpyxl Master Class Grade Sheet aggregating all students
     in the classroom into one single-file Excel table sorted by Roll No.
@@ -488,7 +567,7 @@ def generate_master_excel_bytes(classroom_id: str) -> bytes:
         cls_col = get_classrooms_collection()
         class_info = cls_col.find_one({"classroom_id": classroom_id}, {"_id": 0}) or {}
     
-    submissions = get_classroom_submissions(classroom_id)
+    submissions = get_classroom_submissions(classroom_id, faculty_email=faculty_email)
     
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -624,9 +703,9 @@ def generate_master_excel_bytes(classroom_id: str) -> bytes:
     return output.getvalue()
 
 
-def generate_master_csv_string(classroom_id: str) -> str:
+def generate_master_csv_string(classroom_id: str, faculty_email: Optional[str] = None) -> str:
     """Compiles a clean Master CSV string containing all students in the classroom."""
-    submissions = get_classroom_submissions(classroom_id)
+    submissions = get_classroom_submissions(classroom_id, faculty_email=faculty_email)
     
     headers = [
         "Sr.No.", "Roll No", "PRN Number", "Student Name",

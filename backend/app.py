@@ -606,10 +606,13 @@ class ClassroomCreateRequest(BaseModel):
     subject: str
     exam_name: Optional[str] = "IA-1"
     max_marks_config: Optional[Dict[str, Any]] = None
+    created_by: Optional[str] = None
+    creator_name: Optional[str] = None
 
 class ToggleSubmissionRequest(BaseModel):
     classroom_id: str
     is_submission_open: bool
+    faculty_email: Optional[str] = None
 
 class StudentSubmissionRequest(BaseModel):
     classroom_id: str
@@ -621,7 +624,7 @@ class StudentSubmissionRequest(BaseModel):
 
 @app.post("/api/classrooms")
 def create_classroom_endpoint(req: ClassroomCreateRequest):
-    """Registers a new classroom/exam batch in MongoDB Atlas."""
+    """Registers a new classroom/exam batch in MongoDB Atlas with creator tag."""
     try:
         from backend.services.submission_service import create_or_get_classroom
         cls_doc = create_or_get_classroom(
@@ -631,7 +634,9 @@ def create_classroom_endpoint(req: ClassroomCreateRequest):
             semester=req.semester,
             subject=req.subject,
             exam_name=req.exam_name or "IA-1",
-            max_marks_config=req.max_marks_config
+            max_marks_config=req.max_marks_config,
+            created_by=req.created_by,
+            creator_name=req.creator_name
         )
         return {"status": "success", "classroom": cls_doc}
     except Exception as e:
@@ -640,11 +645,11 @@ def create_classroom_endpoint(req: ClassroomCreateRequest):
 
 
 @app.get("/api/classrooms")
-def list_classrooms_endpoint():
-    """Lists all registered classrooms for student and faculty selection dropdowns."""
+def list_classrooms_endpoint(faculty_email: Optional[str] = None):
+    """Lists registered classrooms. If faculty_email is provided, filters to classes created by that faculty."""
     try:
         from backend.services.submission_service import list_classrooms
-        classes = list_classrooms()
+        classes = list_classrooms(faculty_email=faculty_email)
         return {"status": "success", "count": len(classes), "classrooms": classes}
     except Exception as e:
         logger.exception("Classroom listing failed")
@@ -656,7 +661,7 @@ def toggle_classroom_submission_endpoint(req: ToggleSubmissionRequest):
     """Updates the open/closed submission state for a classroom."""
     try:
         from backend.services.submission_service import toggle_classroom_submission_status
-        success = toggle_classroom_submission_status(req.classroom_id, req.is_submission_open)
+        success = toggle_classroom_submission_status(req.classroom_id, req.is_submission_open, faculty_email=req.faculty_email)
         if not success:
             raise HTTPException(status_code=404, detail="Classroom not found")
         return {
@@ -664,6 +669,8 @@ def toggle_classroom_submission_endpoint(req: ToggleSubmissionRequest):
             "classroom_id": req.classroom_id,
             "is_submission_open": req.is_submission_open
         }
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
     except HTTPException:
         raise
     except Exception as e:
@@ -695,34 +702,36 @@ def save_student_submission_endpoint(req: StudentSubmissionRequest):
 
 
 @app.get("/api/submissions/{classroom_id}")
-def get_classroom_submissions_endpoint(classroom_id: str):
+def get_classroom_submissions_endpoint(classroom_id: str, faculty_email: Optional[str] = None):
     """
     Retrieves all student submissions for a given classroom, strictly sorted
     by natural numeric Roll Number ascending.
     """
     try:
         from backend.services.submission_service import get_classroom_submissions
-        roster = get_classroom_submissions(classroom_id)
+        roster = get_classroom_submissions(classroom_id, faculty_email=faculty_email)
         return {
             "status": "success",
             "classroom_id": classroom_id,
             "total_students": len(roster),
             "submissions": roster
         }
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
     except Exception as e:
         logger.exception("Fetching classroom submissions failed")
         raise HTTPException(status_code=500, detail=f"Failed to fetch classroom submissions: {str(e)}")
 
 
 @app.get("/api/export/master-excel/{classroom_id}")
-def export_master_excel_endpoint(classroom_id: str):
+def export_master_excel_endpoint(classroom_id: str, faculty_email: Optional[str] = None):
     """
     Compiles and downloads a single Master Class Excel Grade Sheet containing
     all submitted students sorted systematically by Roll Number.
     """
     try:
         from backend.services.submission_service import generate_master_excel_bytes
-        excel_bytes = generate_master_excel_bytes(classroom_id)
+        excel_bytes = generate_master_excel_bytes(classroom_id, faculty_email=faculty_email)
         headers = {
             'Content-Disposition': f'attachment; filename="master_grade_sheet_{classroom_id}.xlsx"'
         }
@@ -731,20 +740,22 @@ def export_master_excel_endpoint(classroom_id: str):
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers=headers
         )
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
     except Exception as e:
         logger.exception("Master Excel export failed")
         raise HTTPException(status_code=500, detail=f"Failed to generate Master Excel: {str(e)}")
 
 
 @app.get("/api/export/master-csv/{classroom_id}")
-def export_master_csv_endpoint(classroom_id: str):
+def export_master_csv_endpoint(classroom_id: str, faculty_email: Optional[str] = None):
     """
     Compiles and downloads a clean Master Class CSV file containing all
     submitted students sorted systematically by Roll Number.
     """
     try:
         from backend.services.submission_service import generate_master_csv_string
-        csv_str = generate_master_csv_string(classroom_id)
+        csv_str = generate_master_csv_string(classroom_id, faculty_email=faculty_email)
         headers = {
             'Content-Disposition': f'attachment; filename="master_grade_sheet_{classroom_id}.csv"'
         }
@@ -753,6 +764,8 @@ def export_master_csv_endpoint(classroom_id: str):
             media_type="text/csv",
             headers=headers
         )
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
     except Exception as e:
         logger.exception("Master CSV export failed")
         raise HTTPException(status_code=500, detail=f"Failed to generate Master CSV: {str(e)}")

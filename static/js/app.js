@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentCropRect = null;
     let isAutoCropped = false;
     let activeClassroomsList = [];
+    let studentClassroomsList = [];
+    let facultyClassroomsList = [];
     let currentRosterData = [];
 
     // Navigation Tabs
@@ -248,18 +250,38 @@ document.addEventListener('DOMContentLoaded', () => {
     })();
 
     // ------------------------------------------------------------------
-    // 2. Classroom Management (MongoDB Synced)
+    // 2. Classroom Management (MongoDB Synced & Faculty-Scoped)
     // ------------------------------------------------------------------
     async function loadClassrooms(selectedIdToSet = null) {
         try {
-            const res = await fetch('/api/classrooms');
-            const data = await res.json();
-
-            if (data.status === 'success' && data.classrooms) {
-                activeClassroomsList = data.classrooms;
+            // 1. Load all active classrooms (for Student Portal view)
+            const studentRes = await fetch(`/api/classrooms?_t=${Date.now()}`, { cache: 'no-store' });
+            const studentData = await studentRes.json();
+            if (studentData.status === 'success' && Array.isArray(studentData.classrooms)) {
+                studentClassroomsList = studentData.classrooms;
             } else {
-                activeClassroomsList = [];
+                studentClassroomsList = [];
             }
+
+            // 2. Load faculty classrooms (strictly filtered to classes created by this faculty member)
+            const isFaculty = currentLoggedUser && (currentLoggedUser.role === 'faculty');
+            const isAdmin = currentLoggedUser && (currentLoggedUser.role === 'admin' || (currentLoggedUser.email && currentLoggedUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()));
+
+            let facultyUrl = `/api/classrooms?_t=${Date.now()}`;
+            if (isFaculty && !isAdmin && currentLoggedUser.email) {
+                facultyUrl = `/api/classrooms?faculty_email=${encodeURIComponent(currentLoggedUser.email)}&_t=${Date.now()}`;
+            }
+
+            const facultyRes = await fetch(facultyUrl, { cache: 'no-store' });
+            const facultyData = await facultyRes.json();
+            if (facultyData.status === 'success' && Array.isArray(facultyData.classrooms)) {
+                facultyClassroomsList = facultyData.classrooms;
+            } else {
+                facultyClassroomsList = [];
+            }
+
+            // Active list context
+            activeClassroomsList = isFaculty ? facultyClassroomsList : studentClassroomsList;
 
             populateClassroomDropdowns(selectedIdToSet);
         } catch (err) {
@@ -268,8 +290,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateStudentLockState(classroomId) {
-        if (!classroomId || !activeClassroomsList || activeClassroomsList.length === 0) return;
-        const cls = activeClassroomsList.find(c => c.classroom_id === classroomId);
+        if (!classroomId || !studentClassroomsList || studentClassroomsList.length === 0) return;
+        const cls = studentClassroomsList.find(c => c.classroom_id === classroomId);
         const isOpen = cls ? (cls.is_submission_open !== false) : true;
 
         if (isOpen) {
@@ -300,8 +322,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateFacultyToggleState(classroomId) {
-        if (!classroomId || !activeClassroomsList || activeClassroomsList.length === 0) return;
-        const cls = activeClassroomsList.find(c => c.classroom_id === classroomId);
+        if (!classroomId || !facultyClassroomsList || facultyClassroomsList.length === 0) return;
+        const cls = facultyClassroomsList.find(c => c.classroom_id === classroomId);
         const isOpen = cls ? (cls.is_submission_open !== false) : true;
 
         if (facultySubmissionToggle) {
@@ -319,35 +341,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateClassroomDropdowns(selectedId = null) {
-        if (!activeClassroomsList || activeClassroomsList.length === 0) {
-            const studentEmptyOpt = '<option value="">-- No Active Classes (Please wait for faculty) --</option>';
-            const facultyEmptyOpt = '<option value="">-- No Classes Created Yet (Click "+ Create New Class / Exam" above) --</option>';
-            if (studentClassroomSelect) studentClassroomSelect.innerHTML = studentEmptyOpt;
-            if (facultyClassroomSelect) facultyClassroomSelect.innerHTML = facultyEmptyOpt;
-            const facultyUploadClassroomSelect = document.getElementById('facultyUploadClassroomSelect');
-            if (facultyUploadClassroomSelect) facultyUploadClassroomSelect.innerHTML = facultyEmptyOpt;
-            return;
+        // --- Populate Student Dropdown (All available active classes) ---
+        if (studentClassroomSelect) {
+            if (!studentClassroomsList || studentClassroomsList.length === 0) {
+                studentClassroomSelect.innerHTML = '<option value="">-- No Active Classes (Please wait for faculty) --</option>';
+            } else {
+                const sOpts = studentClassroomsList.map(cls => {
+                    const statusTag = cls.is_submission_open === false ? ' [LOCKED]' : '';
+                    const teacherTag = cls.creator_name ? ` • Prof. ${cls.creator_name}` : '';
+                    const label = `${cls.year} ${cls.branch} (Div ${cls.division}) • ${cls.subject} (Sem ${cls.semester}) • ${cls.exam_name || 'IA-1'}${teacherTag}${statusTag}`;
+                    return `<option value="${cls.classroom_id}">${label}</option>`;
+                });
+                studentClassroomSelect.innerHTML = sOpts.join('');
+            }
         }
 
-        const studentOpts = [];
-        const facultyOpts = [];
-
-        activeClassroomsList.forEach(cls => {
-            const statusTag = cls.is_submission_open === false ? ' [LOCKED]' : '';
-            const label = `${cls.year} ${cls.branch} (Div ${cls.division}) • ${cls.subject} (Sem ${cls.semester}) • ${cls.exam_name || 'IA-1'}${statusTag}`;
-            studentOpts.push(`<option value="${cls.classroom_id}">${label}</option>`);
-            facultyOpts.push(`<option value="${cls.classroom_id}">${label}</option>`);
-        });
-
-        if (studentClassroomSelect) studentClassroomSelect.innerHTML = studentOpts.join('');
-        if (facultyClassroomSelect) facultyClassroomSelect.innerHTML = facultyOpts.join('');
+        // --- Populate Faculty Dropdowns (Strictly ONLY classes created by this faculty) ---
+        const facultyEmptyOpt = '<option value="">-- No Classes Created by You Yet (Click "+ Create New Class / Exam" above) --</option>';
         const facultyUploadClassroomSelect = document.getElementById('facultyUploadClassroomSelect');
-        if (facultyUploadClassroomSelect) facultyUploadClassroomSelect.innerHTML = facultyOpts.join('');
+
+        if (!facultyClassroomsList || facultyClassroomsList.length === 0) {
+            if (facultyClassroomSelect) facultyClassroomSelect.innerHTML = facultyEmptyOpt;
+            if (facultyUploadClassroomSelect) facultyUploadClassroomSelect.innerHTML = facultyEmptyOpt;
+        } else {
+            const fOpts = facultyClassroomsList.map(cls => {
+                const statusTag = cls.is_submission_open === false ? ' [LOCKED]' : '';
+                const label = `${cls.year} ${cls.branch} (Div ${cls.division}) • ${cls.subject} (Sem ${cls.semester}) • ${cls.exam_name || 'IA-1'}${statusTag}`;
+                return `<option value="${cls.classroom_id}">${label}</option>`;
+            });
+            if (facultyClassroomSelect) facultyClassroomSelect.innerHTML = fOpts.join('');
+            if (facultyUploadClassroomSelect) facultyUploadClassroomSelect.innerHTML = fOpts.join('');
+        }
 
         if (selectedId) {
-            if (studentClassroomSelect) studentClassroomSelect.value = selectedId;
-            if (facultyClassroomSelect) facultyClassroomSelect.value = selectedId;
-            if (facultyUploadClassroomSelect) facultyUploadClassroomSelect.value = selectedId;
+            if (studentClassroomSelect && studentClassroomsList.some(c => c.classroom_id === selectedId)) {
+                studentClassroomSelect.value = selectedId;
+            }
+            if (facultyClassroomSelect && facultyClassroomsList.some(c => c.classroom_id === selectedId)) {
+                facultyClassroomSelect.value = selectedId;
+            }
+            if (facultyUploadClassroomSelect && facultyClassroomsList.some(c => c.classroom_id === selectedId)) {
+                facultyUploadClassroomSelect.value = selectedId;
+            }
         }
 
         const activeStudentId = studentClassroomSelect ? studentClassroomSelect.value : null;
@@ -391,7 +426,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     division: division,
                     semester: semester,
                     subject: subject,
-                    exam_name: examName
+                    exam_name: examName,
+                    created_by: currentLoggedUser ? currentLoggedUser.email : '',
+                    creator_name: currentLoggedUser ? (currentLoggedUser.name || currentLoggedUser.email) : ''
                 })
             });
 
@@ -1152,21 +1189,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ------------------------------------------------------------------
-    // 7. Faculty Dashboard & Live Class Roster
-    // ------------------------------------------------------------------
     async function loadFacultyRoster() {
-        const classroomId = facultyClassroomSelect ? facultyClassroomSelect.value : (activeClassroomsList[0]?.classroom_id || 'SE_IT_B_IV_CNND_IA1');
-        if (!classroomId) return;
+        const classroomId = facultyClassroomSelect ? facultyClassroomSelect.value : null;
+        if (!classroomId) {
+            currentRosterData = [];
+            renderFacultyMetrics([]);
+            renderFacultyRosterTable([]);
+            return;
+        }
 
+        const facultyEmailParam = (currentLoggedUser && currentLoggedUser.email) ? `?faculty_email=${encodeURIComponent(currentLoggedUser.email)}` : '';
         try {
-            const res = await fetch(`/api/submissions/${classroomId}`);
+            const res = await fetch(`/api/submissions/${classroomId}${facultyEmailParam}`);
             const data = await res.json();
 
             if (data.status === 'success') {
                 currentRosterData = data.submissions || [];
                 renderFacultyMetrics(currentRosterData);
                 renderFacultyRosterTable(currentRosterData);
+            } else {
+                currentRosterData = [];
+                renderFacultyMetrics([]);
+                renderFacultyRosterTable([]);
             }
         } catch (err) {
             console.error('Failed to fetch faculty roster from MongoDB:', err);
@@ -1337,7 +1381,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (facultySubmissionToggle) {
         facultySubmissionToggle.addEventListener('change', async (e) => {
             const classroomId = facultyClassroomSelect ? facultyClassroomSelect.value : null;
-            if (!classroomId) return;
+            if (!classroomId) {
+                e.target.checked = !e.target.checked;
+                alert('No classroom selected. Please create or select a class first.');
+                return;
+            }
             const newStatus = e.target.checked;
 
             try {
@@ -1346,12 +1394,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         classroom_id: classroomId,
-                        is_submission_open: newStatus
+                        is_submission_open: newStatus,
+                        faculty_email: currentLoggedUser ? currentLoggedUser.email : ''
                     })
                 });
                 const data = await res.json();
                 if (data.status === 'success') {
-                    const cls = activeClassroomsList.find(c => c.classroom_id === classroomId);
+                    const cls = facultyClassroomsList.find(c => c.classroom_id === classroomId);
                     if (cls) cls.is_submission_open = newStatus;
 
                     updateFacultyToggleState(classroomId);
@@ -1381,11 +1430,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Master Class Excel Export
     if (btnFacultyExportExcel) {
         btnFacultyExportExcel.addEventListener('click', async () => {
-            const classroomId = facultyClassroomSelect ? facultyClassroomSelect.value : 'SE_IT_B_IV_CNND_IA1';
+            const classroomId = facultyClassroomSelect ? facultyClassroomSelect.value : null;
+            if (!classroomId) {
+                alert('No classroom selected. Please create or select a class first.');
+                return;
+            }
             showLoading('Exporting Master Class Excel', 'Compiling all student grades into one Excel workbook...');
 
             try {
-                const res = await fetch(`/api/export/master-excel/${classroomId}`);
+                const facultyEmailParam = (currentLoggedUser && currentLoggedUser.email) ? `?faculty_email=${encodeURIComponent(currentLoggedUser.email)}` : '';
+                const res = await fetch(`/api/export/master-excel/${classroomId}${facultyEmailParam}`);
                 if (res.ok) {
                     const blob = await res.blob();
                     const url = window.URL.createObjectURL(blob);
@@ -1397,7 +1451,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     a.remove();
                     window.URL.revokeObjectURL(url);
                 } else {
-                    alert('Failed to export Master Excel sheet.');
+                    const errJson = await res.json().catch(() => ({}));
+                    alert(errJson.detail || 'Failed to export Master Excel sheet.');
                 }
             } catch (err) {
                 alert(`Export error: ${err.message}`);
@@ -1410,11 +1465,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Master Class CSV Export
     if (btnFacultyExportCsv) {
         btnFacultyExportCsv.addEventListener('click', async () => {
-            const classroomId = facultyClassroomSelect ? facultyClassroomSelect.value : 'SE_IT_B_IV_CNND_IA1';
+            const classroomId = facultyClassroomSelect ? facultyClassroomSelect.value : null;
+            if (!classroomId) {
+                alert('No classroom selected. Please create or select a class first.');
+                return;
+            }
             showLoading('Exporting Master CSV', 'Generating clean CSV for all students...');
 
             try {
-                const res = await fetch(`/api/export/master-csv/${classroomId}`);
+                const facultyEmailParam = (currentLoggedUser && currentLoggedUser.email) ? `?faculty_email=${encodeURIComponent(currentLoggedUser.email)}` : '';
+                const res = await fetch(`/api/export/master-csv/${classroomId}${facultyEmailParam}`);
                 if (res.ok) {
                     const blob = await res.blob();
                     const url = window.URL.createObjectURL(blob);
@@ -1426,7 +1486,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     a.remove();
                     window.URL.revokeObjectURL(url);
                 } else {
-                    alert('Failed to export Master CSV file.');
+                    const errJson = await res.json().catch(() => ({}));
+                    alert(errJson.detail || 'Failed to export Master CSV file.');
                 }
             } catch (err) {
                 alert(`Export error: ${err.message}`);
