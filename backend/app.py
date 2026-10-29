@@ -367,17 +367,28 @@ def extract_sections(req: ExtractRequest):
                 # --- Hybrid Engine: Cloud Vision AI with Edge-First Fallback ---
                 t_start_gemini = time.time()
                 gemini_sections = None
+                gemini_meta = None
                 try:
-                    gemini_sections = extract_with_gemini_vision(t_img)
+                    res_vis = extract_with_gemini_vision(t_img, return_metadata=True)
+                    if res_vis and isinstance(res_vis, tuple):
+                        gemini_sections, gemini_meta = res_vis
+                    elif res_vis and isinstance(res_vis, list):
+                        gemini_sections = res_vis
                     # If ROI crop was too narrow, try full image
                     if not gemini_sections and t_img is not processed:
-                        gemini_sections = extract_with_gemini_vision(processed)
+                        res_vis = extract_with_gemini_vision(processed, return_metadata=True)
+                        if res_vis and isinstance(res_vis, tuple):
+                            gemini_sections, gemini_meta = res_vis
+                        elif res_vis and isinstance(res_vis, list):
+                            gemini_sections = res_vis
                 except Exception as vision_err:
                     logger.warning(f"[Extract Endpoint] Gemini Hybrid vision skipped: {vision_err}")
                 gemini_total_ms += (time.time() - t_start_gemini) * 1000.0
 
                 if gemini_sections and len(gemini_sections) > 0:
                     p_sections = gemini_sections
+                    if gemini_meta:
+                        extracted_metadata = gemini_meta
                 else:
                     # Fallback to 100% On-Device Engine: PyTorch CNN + OpenCV
                     t_start_local = time.time()

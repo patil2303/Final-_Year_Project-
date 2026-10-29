@@ -43,10 +43,7 @@ def _get_gemini_api_key() -> Optional[str]:
 
 
 _PREFERRED_VISION_MODELS = [
-    "models/gemini-flash-lite-latest",
     "models/gemini-2.5-flash",
-    "models/gemini-flash-latest",
-    "models/gemini-3-flash-preview",
     "models/gemini-2.5-pro"
 ]
 
@@ -107,17 +104,17 @@ def extract_with_gemini_vision(img: Any, return_metadata: bool = False) -> Any:
     if img is None or not hasattr(img, 'size') or img.size == 0:
         return None
 
-    # Step 1: Resize image to max 1600px dimension for ultra-fast, lightweight upload
+    # Step 1: Resize image to max 1200px dimension for ultra-fast, lightweight upload
     h, w = img.shape[:2]
-    max_dim = 1600
+    max_dim = 1200
     if max(h, w) > max_dim:
         scale = max_dim / max(h, w)
         scaled_img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
     else:
         scaled_img = img
 
-    # Step 2: Encode to JPEG with quality 92 (~250 KB payload for instantaneous API upload)
-    success, buffer = cv2.imencode(".jpg", scaled_img, [cv2.IMWRITE_JPEG_QUALITY, 92])
+    # Step 2: Encode to JPEG with quality 88 (~150 KB payload for instantaneous API upload)
+    success, buffer = cv2.imencode(".jpg", scaled_img, [cv2.IMWRITE_JPEG_QUALITY, 88])
     if not success or buffer is None:
         logger.error("[Gemini Vision] Image encoding failed")
         return None
@@ -187,7 +184,10 @@ Return ONLY valid JSON matching this schema:
             }],
             "generationConfig": {
                 "response_mime_type": "application/json",
-                "temperature": 0.0
+                "temperature": 0.0,
+                "thinkingConfig": {
+                    "thinkingBudget": 0
+                }
             }
         }
 
@@ -198,7 +198,7 @@ Return ONLY valid JSON matching this schema:
                 data=data,
                 headers={"Content-Type": "application/json"}
             )
-            with urllib.request.urlopen(req, timeout=25) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 res_body = json.loads(resp.read().decode("utf-8"))
                 candidate = res_body.get("candidates", [{}])[0]
                 text_out = candidate.get("content", {}).get("parts", [{}])[0].get("text", "").strip()
@@ -209,7 +209,29 @@ Return ONLY valid JSON matching this schema:
                 # Parse JSON output robustly
                 parsed = _clean_and_parse_json(text_out)
                 raw_sections = parsed.get("sections", [])
+                if not raw_sections:
+                    if "marks_table" in parsed and isinstance(parsed["marks_table"], dict):
+                        raw_sections = [parsed["marks_table"]]
+                    elif "table" in parsed and isinstance(parsed["table"], dict):
+                        raw_sections = [parsed["table"]]
+                    elif "rows" in parsed and isinstance(parsed["rows"], list):
+                        raw_sections = [{
+                            "title": "Exam Marks Table",
+                            "headers": parsed.get("headers", ["Q.No.", "1a", "1b", "1c", "1d", "1e", "1f", "2a", "2b", "3a", "3b", "Total", "Sign. of Examiner"]),
+                            "rows": parsed.get("rows", [])
+                        }]
+
                 metadata = parsed.get("metadata", {})
+                if not metadata and "student_name" in parsed:
+                    metadata = {
+                        "student_name": parsed.get("student_name", ""),
+                        "prn": parsed.get("prn", ""),
+                        "roll_no": parsed.get("roll_no", ""),
+                        "branch": parsed.get("branch", ""),
+                        "division": parsed.get("division", ""),
+                        "semester": parsed.get("semester", ""),
+                        "subject": parsed.get("subject", "")
+                    }
                 
                 if metadata and "roll_no" in metadata:
                     from backend.services.submission_service import clean_roll_number
@@ -225,7 +247,17 @@ Return ONLY valid JSON matching this schema:
                     headers = sec.get("headers", [])
                     raw_rows = sec.get("rows", [])
 
-                    if not headers and raw_rows:
+                    # If rows are dictionaries, convert them to lists ordered by headers
+                    if raw_rows and isinstance(raw_rows[0], dict):
+                        if not headers:
+                            headers = list(raw_rows[0].keys())
+                        converted_rows = []
+                        for r_dict in raw_rows:
+                            row_list = [str(r_dict.get(h, "") if r_dict.get(h) is not None else "") for h in headers]
+                            converted_rows.append(row_list)
+                        raw_rows = converted_rows
+
+                    if not headers and raw_rows and isinstance(raw_rows[0], (list, tuple)):
                         headers = [f"Column {i+1}" for i in range(len(raw_rows[0]))]
 
                     num_cols = len(headers)
@@ -234,7 +266,12 @@ Return ONLY valid JSON matching this schema:
                     for r in raw_rows:
                         row_cells = []
                         for c_idx in range(num_cols):
-                            cell_val = str(r[c_idx]).strip() if c_idx < len(r) else ""
+                            cell_val = ""
+                            if isinstance(r, (list, tuple)) and c_idx < len(r):
+                                cell_val = str(r[c_idx] if r[c_idx] is not None else "").strip()
+                            elif isinstance(r, dict):
+                                h_key = headers[c_idx] if c_idx < len(headers) else str(c_idx)
+                                cell_val = str(r.get(h_key, "") if r.get(h_key) is not None else "").strip()
                             norm = clean_and_normalize_ocr_text(cell_val)
                             row_cells.append({
                                 "text": norm["text"],
