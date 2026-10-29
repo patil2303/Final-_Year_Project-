@@ -2239,9 +2239,9 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoading();
 
             if (facultyBatchResults.length > 0) {
-                currentBatchIndex = 0;
+                currentBatchIndex = -1;
                 renderBatchStepper();
-                loadBatchStudent(0);
+                loadBatchStudent(0, false, false);
 
                 if (facultyResultCard) {
                     facultyResultCard.style.display = 'block';
@@ -2304,11 +2304,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function loadBatchStudent(targetIndex, scrollToTop = false) {
+    function loadBatchStudent(targetIndex, scrollToTop = false, saveCurrent = true) {
         if (!facultyBatchResults || facultyBatchResults.length === 0) return;
 
-        // 1. Save current student's edited state before switching
-        saveCurrentBatchStudentEdits();
+        // 1. Only save previous student's edited state if we are actually switching from a valid previously loaded student
+        if (saveCurrent && currentBatchIndex >= 0 && currentBatchIndex < facultyBatchResults.length && currentBatchIndex !== targetIndex) {
+            saveCurrentBatchStudentEdits();
+        }
 
         // 2. Bound index
         if (targetIndex < 0) targetIndex = 0;
